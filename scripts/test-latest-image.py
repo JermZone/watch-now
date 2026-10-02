@@ -78,6 +78,26 @@ class PromotionTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(ValueError):
                 promotion.validate_manifest('v1.0.0', digest, self.manifest(digest, name=name))
 
+    def test_accepts_install_zip_from_release_workflow(self):
+        digest = f"{promotion.IMAGE}@sha256:{'a' * 64}\n".encode()
+        manifest = self.manifest(digest, name='watch-now-1.1.0.tar.gz')
+        manifest += f"{'b' * 64}  watch-now-1.1.0-install.zip\n".encode()
+        self.assertEqual(promotion.validate_manifest('v1.1.0', digest, manifest), digest.decode().strip())
+
+    def test_rejects_wrong_duplicate_or_malformed_install_zip_entries(self):
+        digest = f"{promotion.IMAGE}@sha256:{'a' * 64}\n".encode()
+        manifest = self.manifest(digest, name='watch-now-1.1.0.tar.gz')
+        entry = f"{'b' * 64}  watch-now-1.1.0-install.zip\n".encode()
+        invalid_entries = [
+            f"{'b' * 64}  {name}\n".encode() for name in [
+                'watch-now-1.0.0-install.zip', 'dispatcharr-now-1.1.0-install.zip',
+                '../watch-now-1.1.0-install.zip', 'unexpected.zip',
+            ]
+        ] + [entry + entry, b'not-a-hash  watch-now-1.1.0-install.zip\n']
+        for invalid in invalid_entries:
+            with self.subTest(entry=invalid), self.assertRaises(ValueError):
+                promotion.validate_manifest('v1.1.0', digest, manifest + invalid)
+
     def test_rejects_missing_duplicate_or_malformed_manifest(self):
         digest = f"{promotion.IMAGE}@sha256:{'a' * 64}\n".encode()
         manifest = self.manifest(digest)
