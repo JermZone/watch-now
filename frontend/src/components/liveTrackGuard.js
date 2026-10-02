@@ -1,10 +1,10 @@
-// mpegts.js 1.8.0 keeps queuing media for a source buffer that failed to initialize.
+// mpegts.js 1.8.0 and 1.8.2 keep queuing media for a source buffer that failed to initialize.
 // Its public API has no track-drop operation. This narrowly scoped adapter uses
 // the pinned main-thread controller, with shape/version checks that fail closed
 // to normal fatal error handling if a dependency update changes the contract.
 export const installLiveTrackGuard = (player, version) => {
   const controller = player?._player_engine?._mse_controller;
-  if (version !== '1.8.0' || !controller
+  if (!['1.8.0', '1.8.2'].includes(version) || !controller
     || typeof controller.appendInitSegment !== 'function'
     || typeof controller.appendMediaSegment !== 'function'
     || !Array.isArray(controller._pendingSegments?.audio)
