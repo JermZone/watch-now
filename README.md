@@ -24,12 +24,28 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder.
 
+## Privacy and telemetry
+
+Watch Now does **not** include usage analytics, tracking pixels, advertising SDKs,
+or any other application telemetry, and it does not phone home to the maintainer.
+Your Watch Now instance communicates with the Dispatcharr endpoint you configure
+and with services you deliberately place around it, such as your reverse proxy.
+
+GitHub and container registries may keep their own normal service access logs and
+aggregate download/traffic statistics. Those platform-level statistics are
+separate from Watch Now and are not collected by the application.
+
 ## Releases
 
 **Watch Now 1.0.0** is published. Check
 [GitHub Releases](https://github.com/JermZone/watch-now/releases) for release notes,
-source assets, checksums, and the verified image digest. Install from
-`ghcr.io/jermzone/watch-now:1.0.0` or the stable `latest` tag.
+source assets, checksums, the verified image digest, and versioned install bundles.
+Install from `ghcr.io/jermzone/watch-now:1.0.0` or the stable `latest` tag.
+
+Starting with future releases, the release workflow publishes a
+`watch-now-<version>-install.zip` containing the Compose file, `.env.example`,
+installation guide, README, and license. GitHub's release asset download count can
+be used as a privacy-friendly adoption signal without adding telemetry to Watch Now.
 
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
 unchanged historical image. The clean Watch Now repository intentionally does not
