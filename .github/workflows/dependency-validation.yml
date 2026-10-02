@@ -7,7 +7,7 @@ jobs:
   release-actions-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f
         with:
@@ -15,7 +15,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build candidate with release build action without publishing
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
           context: .
           load: true
@@ -41,7 +41,7 @@ jobs:
           if-no-files-found: error
           retention-days: 1
       - name: Scan candidate
-        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
           image-ref: watch-now:dependency-qa
           severity: HIGH,CRITICAL
@@ -53,17 +53,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - label: react
-            ref: 1625bbfca502d2ff6c8427ed6ca4ca6a40c8522c
-          - label: development
-            ref: 5eeb9bde2f2172459fd4ca56fe5131fca34b0a81
-          - label: mpegts
-            ref: 729b85dfae34ef83200e8b88ec28017d5898ca06
+          - label: integrated
+            ref: 4b665c79dc084154557f3e280039850d56e759ce
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: qa-harness
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: ${{ matrix.ref }}
           path: candidate
