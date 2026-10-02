@@ -1,10 +1,46 @@
 # Watch Now release notes
 
-## Unreleased
+## 1.1.0 — prepared, pending publication
+
+Adds Live TV VLC handoff and brings together the reviewed changes since 1.0.0.
+Version metadata is not an announcement that an image is available. Install only
+after the published release provides the matching image digest and assets.
+
+### Highlights
 
 - Add a VLC action to Live TV's Watch options. Supported Apple mobile devices use Open in VLC; desktop devices download a temporary playlist. During browser playback, show a plain Stop button matching Movies and Series; stopping restores Watch options.
 - Live handoffs use the existing short-lived links, recheck the viewer's current channel access, and stop the browser relay when external playback begins.
 - The maintainer confirmed Live TV VLC playback/casting and Movie/Series casting on the development candidates. See [QA evidence](docs/live-tv-vlc-qa.md) for the tested commits and remaining limits. Choose the cast device inside VLC; automatic casting is not included.
+
+### Maintenance and packaging
+
+- Include reviewed React, playback-library, frontend-tooling, and pinned CI action updates already merged into main. The live track guard and container license notices were adapted for mpegts.js 1.8.2.
+- Provide a versioned installation ZIP alongside source, image digest, and checksum assets. GitHub's aggregate asset download counts can indicate adoption; Watch Now still contains no application telemetry.
+- Provide tested, commit-labeled development images and separate test-stack instructions for future feature work.
+
+### Validation and limits
+
+The maintainer approved the Live TV feature after testing the separate QA
+candidates. Integration on main passed Go tests/vet/race, all 150 frontend tests,
+audits, Compose/release checks, the Docker build, and the HIGH/CRITICAL image scan.
+Exact device/OS/VLC versions, a measured sustained-playback duration, and independent
+concurrent upstream counts were not supplied. Results apply to the recorded
+candidates; checks on a final published 1.1.0 image remain pending.
+
+[Issue #11](https://github.com/JermZone/watch-now/issues/11), the reported
+unresponsive Watch button after signing out/in, remains unresolved. This release
+does not claim a fix. Linux AMD64 remains the container target. Codecs, VLC/device
+support, and network reachability determine playback/casting compatibility;
+there is no transcoding or automatic cast-device selection.
+
+### Upgrade
+
+Keep the existing stack/service name, port, upstream URL, and proxy settings when
+changing only the image to the verified 1.1.0 tag/digest. No database migration
+is needed. Restarting ends in-memory sessions, so viewers must sign in again.
+Retain the prior digest/configuration for rollback. See
+[installation](docs/installation.md) and
+[1.1.0 release preparation](docs/release-readiness-1.1.0.md).
 
 ## 1.0.0
 
