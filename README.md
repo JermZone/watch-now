@@ -28,21 +28,22 @@ It is an existing interface capture, not evidence of a tested new container.
 ## Release status
 
 **This is the unpublished Watch Now `1.0.0-rc.3` preparation candidate.** The
-intended new package is `ghcr.io/jermzone/watch-now`. No new image or stable release
-is published merely by applying this cleanup. Use the separate source-test route
-in the [installation guide](docs/installation.md) until a release provides a
-verified image tag and digest.
+intended new package is `ghcr.io/jermzone/watch-now`. The clean source-repository
+handover is complete, but no new image or stable release has been published.
+Use the separate source-test route in the [installation guide](docs/installation.md)
+until a release provides a verified image tag and digest.
 
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
 unchanged image. Its original source and installation files remain at the
-[legacy release tag](https://github.com/JermZone/watch-now/tree/v1.0.2).
+[legacy release tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2).
 Do not replace a working stack based only on the repository's new name.
 See [migration](docs/migration.md) and [source provenance](PROVENANCE.md).
 
 **Known issue:** Watch has been reported to become unresponsive after signing out
 and back in. Investigation is deferred; the cause and a reliable workaround are
-not verified. [Issue #35](https://github.com/JermZone/watch-now/issues/35) remains
-open. This cleanup is not a fix for that report.
+not verified. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains
+open, with the original report retained in the legacy repository. The source
+handover is not a fix for that report.
 
 ## Getting started
 
@@ -70,9 +71,11 @@ before exposing Watch Now to the internet.
 | Live show search | Requires a usable viewer-specific XMLTV guide; channel search remains available without it. |
 | Permissions | A restricted viewer lineup was manually checked; automated tests cover viewer separation and revoked access. |
 
-These are development records, not validation of the new release-candidate image.
-The [release checklist](docs/release-readiness.md) separates automated checks from
-fresh installation and actual playback checks.
+These playback records are from development, not a repeat on the new image.
+The maintainer also confirmed that the rc.3 source-built test container was
+healthy, accepted sign-in, and displayed the correct name/version. See
+[release readiness](docs/release-readiness.md) for the evidence and remaining
+published-image checks.
 
 Desktop **Watch in VLC** downloads a temporary playlist; open it promptly. Apple
 mobile **Open in VLC** hands off outside the browser. Launch links last one minute;

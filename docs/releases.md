@@ -1,8 +1,10 @@
 # Maintainer release procedure
 
-Read [release readiness](release-readiness.md) before publishing. This preparation
-is **1.0.0-rc.3**. Do not reset the existing development release line below its published v1.0.2.
-The planned stable **1.0.0** belongs to the separately approved new repository/package.
+Read [release readiness](release-readiness.md) before publishing. The clean
+source-repository handover is complete; imported preparation is **1.0.0-rc.3**.
+The planned **1.0.0** is the first stable release of the new repository/package.
+The earlier v1.0.2 remains in [watch-now-legacy](https://github.com/JermZone/watch-now-legacy/releases/tag/v1.0.2);
+do not replace or relabel that historical release.
 
 Published tags, images, and assets are immutable. Do not replace a version to fix
 it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untouched.
@@ -12,10 +14,15 @@ it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untou
 Update the root package/lock metadata, both image-only Compose defaults, source
 Compose build argument, and `.env.example` together. The Makefile/CI read the
 package version instead of hard-coding one. Use `-rc.N` during testing and a new
-candidate number for changed source. The workflow accepts stable and `-rc.N` tags.
+candidate number after changing a tagged/published candidate. The imported rc.3
+snapshot has not been tagged or published by the source handover. The workflow
+accepts stable and `-rc.N` tags.
 
 Run all CI checks, including release-consistency and promotion tests. Read the diff
 and license/source notices. Keep stable release approval separate from green CI.
+Use the evidence policy in [release readiness](release-readiness.md): retain the
+maintainer's earlier feature tests and completed source-install check without
+presenting them as newly repeated tests of a registry image.
 
 ## Build and validate
 
@@ -29,7 +36,9 @@ uploads a release manifest. It does not publish the GitHub release or move lates
 Review the pushed image's digest, SBOM/provenance, and source/version labels. The
 pipeline builds a scan candidate and a provenance-enabled published image separately;
 verify the exact published image too rather than inferring byte identity from the
-candidate scan. Check anonymous pull, health, sign-in and real-device playback.
+candidate scan. Check anonymous pull, healthy startup, and version/source labels
+using the image-only public installation route on an isolated stack. Repeat
+functional testing where subsequent runtime changes or failures justify it.
 
 ## Publish
 
