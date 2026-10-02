@@ -1,8 +1,9 @@
 # Maintainer release procedure
 
-Read [release readiness](release-readiness.md) before publishing. The clean
-source-repository handover is complete. The source is prepared for **1.0.0** from
-the imported **1.0.0-rc.3** snapshot. Version metadata and release notes do not
+Read [1.1.0 preparation](release-readiness-1.1.0.md) before publishing. The clean
+source-repository handover is complete; 1.0.0's evidence remains in
+[release readiness](release-readiness.md). The current source is prepared for
+**1.1.0**. Version metadata and release notes do not
 approve stable publication or establish that a registry image exists.
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate historical image;
 do not replace or relabel that historical release.
@@ -38,8 +39,9 @@ The release/promotion jobs are disabled unless the repository variable
 checking app/package permissions. This setting is not a substitute for review.
 
 Push an annotated version tag only on reviewed source, matching package.json. The
-workflow tests, builds an AMD64 image, scans it, publishes the versioned image, and
-uploads a release manifest. It does not publish the GitHub release or move latest.
+workflow tests, builds an AMD64 image, scans it, publishes the versioned image,
+uploads a release manifest, and creates the GitHub release with its assets. The
+release build does not itself move latest; verify distribution before promotion.
 Review the pushed image's digest, SBOM/provenance, and source/version labels. The
 pipeline builds a scan candidate and a provenance-enabled published image separately;
 verify the exact published image too rather than inferring byte identity from the
@@ -50,14 +52,16 @@ functional testing where subsequent runtime changes or failures justify it.
 ## Publish
 
 Download the workflow's `release-manifest`: `watch-now-VERSION.tar.gz`,
-`image-digest.txt`, and `SHA256SUMS`. Verify source/digest checksums. Preserve the
-previous image/configuration for rollback. Confirm GHCR package visibility is
+`watch-now-VERSION-install.zip`, `image-digest.txt`, and `SHA256SUMS`. Verify
+source/digest checksums. Preserve the previous image/configuration for rollback.
+Confirm GHCR package visibility is
 Public and private vulnerability reporting is available in the new repository.
 
-Publish an RC as a prerelease, never as stable. Once the stable source/image is
-approved, publish the stable GitHub release with the exact manifest assets and
-honest notes. Include the verified digest and actual check results, retain the
-known issue and limitations from the prepared release notes, and keep unrun checks
+The tag-triggered workflow creates an RC release as a prerelease and a stable
+release as stable, with the exact manifest assets. Approve the version/tag before
+triggering it. Review the generated release notes and include the verified digest
+and actual check results; retain the known issue and limitations from the prepared
+release notes, and keep unrun checks
 explicit. Any source change after a tag needs a new version/candidate and revalidation.
 
 Only the newest published **stable** semantic version can become `latest`. The
@@ -69,5 +73,10 @@ copies the selected registry manifest and verifies its digest; it does not rebui
 Confirm anonymous `latest` pull equals the tested stable digest before announcing.
 For recovery, run promotion manually on `main` using the published stable tag.
 Never promote an RC just to make the `latest` instructions work.
+
+The release workflow creates releases using `GITHUB_TOKEN`. Those release events
+do not start another workflow under [GitHub's token event rules](https://docs.github.com/en/actions/concepts/security/github_token).
+Run the existing manual promotion action after the release build and exact-image
+verification; do not assume automatic promotion occurred.
 
 Linux AMD64 is the initial target. ARM64 must be built/tested before advertising it.

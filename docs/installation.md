@@ -2,7 +2,7 @@
 
 [Back to Watch Now](../README.md)
 
-**Source version: `1.0.0`.** Use **Docker image / Portainer** only when
+**Source version: `1.1.0`.** Use **Docker image / Portainer** only when
 [GitHub Releases](https://github.com/JermZone/watch-now/releases) supplies a
 published version and verified image digest for `ghcr.io/jermzone/watch-now`.
 If the desired release is not available yet, use **Source testing** below.

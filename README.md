@@ -42,6 +42,11 @@ separate from Watch Now and are not collected by the application.
 source assets, checksums, the verified image digest, and versioned install bundles.
 Install from `ghcr.io/jermzone/watch-now:1.0.0` or the stable `latest` tag.
 
+**Watch Now 1.1.0 is being prepared** with Live TV VLC handoff and casting through
+VLC. This source branch's example files target 1.1.0; use its image only after
+that version appears in a published release with a verified digest. See
+[1.1.0 release preparation](docs/release-readiness-1.1.0.md).
+
 Starting with future releases, the release workflow publishes a
 `watch-now-<version>-install.zip` containing the Compose file, `.env.example`,
 installation guide, README, and license. GitHub's release asset download count can
@@ -58,7 +63,7 @@ See [migration](docs/migration.md) before changing an existing installation.
 and back in. Investigation is deferred; the cause and a reliable workaround are
 not verified. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains
 open. The current issue preserves the original report context and retained test
-evidence. Version 1.0.0 does not fix that report.
+evidence. The 1.1.0 changes do not resolve that report.
 
 ## Getting started
 
@@ -97,9 +102,9 @@ mobile **Open in VLC** hands off outside the browser. Launch links last one minu
 media links expire after ten minutes without a request, with a six-hour maximum.
 Generate a new playlist after expiry. These are not permanent library URLs.
 
-### Live TV VLC option (unreleased)
+### Live TV VLC option (1.1.0)
 
-The development branch adds VLC to Live TV's **Watch options** menu. During
+Version 1.1.0 adds VLC to Live TV's **Watch options** menu. During
 browser playback, **Stop** appears by itself, matching Movies and Series. Stop
 playback to restore the Watch options menu. Choose **Open in VLC** on supported
 Apple mobile devices or **Watch in VLC** to download a temporary playlist on
