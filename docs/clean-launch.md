@@ -1,33 +1,35 @@
-# Watch Now clean-launch status
+# Watch Now clean-launch record
 
 [Back to Watch Now](../README.md)
 
-The clean source-repository handover is complete. The new `JermZone/watch-now`
-was populated with one initial commit and remains private during preparation.
-The previous repository is preserved as `JermZone/watch-now-legacy`; it has not
-been deleted or placed into GitHub's archived state.
+The clean source-repository handover and first stable publication are complete.
+The canonical repository is
+[JermZone/watch-now](https://github.com/JermZone/watch-now), with a clean initial
+commit derived from the reviewed 1.0.0-rc.3 snapshot.
 
-The initial source exactly matches the reviewed **1.0.0-rc.3** snapshot, and its
-CI passed in the new repository. The maintainer confirmed the separate source
-build starts healthy, accepts sign-in, and shows the correct name/version.
-[Provenance](../PROVENANCE.md) records the repository IDs, source commits, and tree;
-[release readiness](release-readiness.md) distinguishes these checks from earlier
-playback evidence and the remaining registry-image verification.
+The clean initial source matched the reviewed snapshot by Git tree and passed CI
+in the new repository. The maintainer separately confirmed the rc.3 source build
+started healthy, accepted sign-in, and showed the correct name/version.
+[Provenance](../PROVENANCE.md) records the source handover without requiring the
+former development repository to remain online.
 
-The `release/1.0.0` preparation aligns the six version files and
-[release notes](../RELEASE_NOTES.md) with **1.0.0**. It does not change playback
-logic, dependencies, or the earlier testing record. A stable-looking version
-number in source is not a publication or approval decision.
+Watch Now 1.0.0 was then prepared without runtime or dependency changes, passed
+its release CI, and was published with checksummed release assets. The public
+image was anonymously pulled and started healthy on an isolated Linux AMD64
+stack. The published-release promotion workflow verified the checksummed digest
+and promoted that exact image to `latest`.
 
-## Remaining launch work
+The verified 1.0.0 image digest is:
 
-Review the version-preparation PR and its exact-head CI, repository/package
-permissions, and the deferred [Watch-button issue](https://github.com/JermZone/watch-now/issues/11).
-Approve the final source and publication separately. Do not repeat the completed
-feature checklist solely because names, documentation, or version labels changed.
+`sha256:3db3b5f3655eed2579797800aeb965b69081c161271bbd577b61fc7f73dd7bc5`
 
-Build the final versioned image, verify its exact digest, anonymous pull, startup,
-and source/version labels, then publish the reviewed release assets and confirm
-stable-only `latest` promotion. Follow [releases](releases.md) and
-[migration](migration.md). Until those steps are verified, do not announce a
-stable image, switch production stacks, or archive the legacy repository.
+The deferred [Watch-button issue](https://github.com/JermZone/watch-now/issues/11)
+remains open. Earlier playback evidence is retained with its original scope; the
+full feature checklist was not repeated on the final image.
+
+The former development repository is no longer required for installation,
+release verification, rollback, or ongoing issue tracking. Relevant historical
+identifiers and evidence have been carried forward into this repository.
+
+See [release readiness](release-readiness.md), [migration](migration.md), and
+[release notes](../RELEASE_NOTES.md).
