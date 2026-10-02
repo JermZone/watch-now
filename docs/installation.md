@@ -69,6 +69,7 @@ tag lets you choose when to update. Validate and start:
 docker compose config --quiet
 docker compose pull
 docker compose up -d
+docker compose ps
 ```
 
 For Portainer, create a new stack from the complete image-only `compose.yaml`.
