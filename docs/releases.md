@@ -4,7 +4,7 @@ Read [release readiness](release-readiness.md) before publishing. The clean
 source-repository handover is complete. The source is prepared for **1.0.0** from
 the imported **1.0.0-rc.3** snapshot. Version metadata and release notes do not
 approve stable publication or establish that a registry image exists.
-The earlier v1.0.2 remains in [watch-now-legacy](https://github.com/JermZone/watch-now-legacy/releases/tag/v1.0.2);
+The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate historical image;
 do not replace or relabel that historical release.
 
 Published tags, images, and assets are immutable. Do not replace a version to fix
