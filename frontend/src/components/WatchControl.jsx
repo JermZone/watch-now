@@ -24,6 +24,7 @@ const acknowledgeVLC = () => {
 const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
+  watchLabel = 'Watch', showOptionsWhilePlaying = false,
 }) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
@@ -168,16 +169,16 @@ const WatchControl = ({
   };
 
   return (
-    <div className={`watch-control ${playing ? 'is-playing' : ''}`} ref={rootRef}>
+    <div className={`watch-control ${playing ? 'is-playing' : ''}${showOptionsWhilePlaying ? ' has-playing-options' : ''}`} ref={rootRef}>
       <button
         className={`primary-button watch-primary ${playing ? 'is-stop' : ''}`}
         disabled={playbackLoading}
         onClick={playing ? onStop : onWatch}
         type="button"
       >
-        {playbackLoading ? 'Preparing…' : playing ? 'Stop' : 'Watch'}
+        {playbackLoading ? 'Preparing…' : playing ? 'Stop' : watchLabel}
       </button>
-      {!playing && (<button
+      {(!playing || showOptionsWhilePlaying) && (<button
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Watch options"
@@ -188,7 +189,7 @@ const WatchControl = ({
       >
         <span aria-hidden="true" className="selector-chevron" />
       </button>)}
-      {open && !playing && (
+      {open && (!playing || showOptionsWhilePlaying) && (
 		<div
           className={`watch-menu is-${menuPosition?.placement || 'below'}`}
           ref={menuRef}
@@ -201,12 +202,12 @@ const WatchControl = ({
 			<button disabled={vlcLoading || !onVLC} onClick={() => choose(isAppleMobile() ? requestVLC : onVLC)} role="menuitem" type="button">
 			  {vlcLoading ? 'Preparing VLC…' : isAppleMobile() ? 'Open in VLC' : 'Watch in VLC'}
 			</button>
-		  <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
+          {onDownload && <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
             {downloadLoading ? 'Preparing download…' : 'Download'}
-          </button>
+          </button>}
         </div>
       )}
-      {showVLCExplanation && !playing && (
+      {showVLCExplanation && (!playing || showOptionsWhilePlaying) && (
         <Modal labelledBy="vlc-dialog-title" initialFocusRef={confirmRef} returnFocusRef={triggerRef} onClose={() => setShowVLCExplanation(false)}>
             <h3 id="vlc-dialog-title">Open in VLC</h3>
             <p>VLC opens outside your browser and may play formats your browser cannot.</p>

@@ -738,6 +738,8 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .watch-control .primary-button { min-height: 44px; margin: 0; border-radius: 11px 0 0 11px; }
 .watch-control.is-playing { grid-template-columns: minmax(154px, 1fr); }
 .watch-control.is-playing .watch-primary { border-radius: 11px; }
+.watch-control.is-playing.has-playing-options { grid-template-columns: minmax(110px, 1fr) 44px; }
+.watch-control.is-playing.has-playing-options .watch-primary { border-radius: 11px 0 0 11px; }
 .watch-options-button { min-height: 44px; display: grid; place-items: center; border: 0; border-left: 1px solid var(--theme-rgba-3-33-24-0-22); border-radius: 0 11px 11px 0; color: var(--theme--032118); background: var(--theme--34bd8a); font-weight: 900; }
 .watch-menu { position: fixed; z-index: 20; min-width: 190px; max-width: calc(100vw - 16px); display: grid; overflow-x: hidden; overflow-y: auto; border: 1px solid var(--theme-rgba-153-207-187-0-22); border-radius: 11px; padding: 0.3rem; background: var(--theme--0b1c16); box-shadow: 0 16px 45px rgba(0,0,0,0.38); }
 .watch-menu button { min-height: 44px; border: 0; border-radius: 8px; padding: 0 0.8rem; color: var(--theme--e4f4ee); background: transparent; text-align: left; }

@@ -113,6 +113,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/live/channels/{channel_id}/epg", s.requireSession(http.HandlerFunc(s.handleEPG)))
 	mux.Handle("GET /api/live/channels/{channel_id}/artwork", s.requireSession(http.HandlerFunc(s.handleArtwork)))
 	mux.Handle("GET /api/live/channels/{channel_id}/stream", s.requireSession(http.HandlerFunc(s.handleLiveStream)))
+	mux.Handle("POST /api/live/channels/{channel_id}/vlc", s.requireSession(http.HandlerFunc(s.handleLiveVLC)))
 	mux.Handle("GET /api/movies/categories", s.requireSession(http.HandlerFunc(s.handleMovieCategories)))
 	mux.Handle("GET /api/movies", s.requireSession(http.HandlerFunc(s.handleMovies)))
 	mux.Handle("GET /api/movies/{movie_id}", s.requireSession(http.HandlerFunc(s.handleMovieDetail)))

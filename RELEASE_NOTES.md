@@ -1,5 +1,11 @@
 # Watch Now release notes
 
+## Unreleased
+
+- Add a VLC action to Live TV's Watch options, including while a browser stream is playing. Supported Apple mobile devices use Open in VLC; desktop devices download a temporary playlist.
+- Live handoffs use the existing short-lived links, recheck the viewer's current channel access, and stop the browser relay when external playback begins.
+- Live TV playback in the VLC application and Chromecast video/audio playback still require manual device validation. Choose the cast device inside VLC; automatic casting is not included.
+
 ## 1.0.0
 
 *A web player for Dispatcharr.*

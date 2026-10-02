@@ -39,6 +39,7 @@ var (
 type ContentKind string
 
 const (
+	KindLive    ContentKind = "live"
 	KindMovie   ContentKind = "movie"
 	KindEpisode ContentKind = "episode"
 )
@@ -377,7 +378,7 @@ func (s *Store) uniqueTokenLocked(exclude string) (string, error) {
 
 func validParams(params CreateParams) bool {
 	return params.SessionID != "" &&
-		(params.Kind == KindMovie || params.Kind == KindEpisode) &&
+		(params.Kind == KindLive || params.Kind == KindMovie || params.Kind == KindEpisode) &&
 		params.ContentID != "" &&
 		params.StreamID != "" &&
 		params.Extension != ""

@@ -508,8 +508,8 @@ func newSeriesDetailResponse(detail dispatcharr.SeriesDetail) seriesDetailRespon
 }
 
 func (s *Server) writeCatalogError(writer http.ResponseWriter, request *http.Request, err error, kind string) {
-	if errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) || errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, dispatcharr.ErrInvalidMedia) {
-		label := map[string]string{"movie": "Movie", "series": "Series", "episode": "Episode"}[kind]
+	if errors.Is(err, errChannelNotFound) || errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) || errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, dispatcharr.ErrInvalidMedia) {
+		label := map[string]string{"channel": "Channel", "movie": "Movie", "series": "Series", "episode": "Episode"}[kind]
 		if label == "" {
 			label = "Media"
 		}

@@ -221,6 +221,16 @@ func (s *Server) handleEpisodeDownload(writer http.ResponseWriter, request *http
 	s.relayMedia(writer, request, downloadContext, current, spec, current.ID+":download", rangeHeader, withExtension(spec.filename, spec.extension), nil, true)
 }
 
+func (s *Server) handleLiveVLC(writer http.ResponseWriter, request *http.Request) {
+	channelID, ok := validPathID(writer, request.PathValue("channel_id"), "channel")
+	if !ok {
+		return
+	}
+	s.createVLCHandoff(writer, request, sessionFromContext(request.Context()), func(ctx context.Context, current session.Session) (mediaSpec, error) {
+		return s.liveMediaSpec(ctx, current, channelID)
+	})
+}
+
 func (s *Server) handleMovieVLC(writer http.ResponseWriter, request *http.Request) {
 	movieID, ok := validPathID(writer, request.PathValue("movie_id"), "movie")
 	if !ok {
@@ -263,7 +273,9 @@ func (s *Server) createVLCHandoff(
 		return
 	}
 	kind := vlcstore.KindMovie
-	if spec.kind == dispatcharr.MediaKindSeries {
+	if spec.kind == dispatcharr.MediaKindLive {
+		kind = vlcstore.KindLive
+	} else if spec.kind == dispatcharr.MediaKindSeries {
 		kind = vlcstore.KindEpisode
 	}
 	created, err := s.vlc.Create(vlcstore.CreateParams{
@@ -326,7 +338,9 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 	}
 	var spec mediaSpec
 	var err error
-	if media.Kind == vlcstore.KindMovie {
+	if media.Kind == vlcstore.KindLive {
+		spec, err = s.liveMediaSpec(request.Context(), viewerSession, media.ContentID)
+	} else if media.Kind == vlcstore.KindMovie {
 		spec, err = s.movieMediaSpec(request.Context(), viewerSession, media.ContentID)
 	} else {
 		spec, err = s.episodeMediaSpec(request.Context(), viewerSession, media.ParentSeriesID, media.ContentID)
@@ -337,7 +351,7 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 			return
 		}
-		if errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) {
+		if errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, errChannelNotFound) || errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) {
 			s.vlc.DeleteSession(media.SessionID)
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 			return
@@ -363,6 +377,12 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		return
 	}
 	defer releaseRelay()
+	if media.Kind == vlcstore.KindLive {
+		// Tear down any browser relay before opening the external live stream.
+		// VLC may fetch this URL without the browser's session cookie.
+		s.playbacks.stop(media.SessionID)
+		s.sessions.EndPlayback(media.SessionID)
+	}
 	deadline := media.HardExpiresAt
 	if sessionDeadline := viewerSession.CreatedAt.Add(s.cfg.SessionAbsoluteTTL); sessionDeadline.Before(deadline) {
 		deadline = sessionDeadline
@@ -429,6 +449,17 @@ func vlcPathFilename(displayFilename string) string {
 	return strings.ReplaceAll(sanitizeDownloadBase(displayFilename, "video"), " ", "-")
 }
 
+func (s *Server) liveMediaSpec(ctx context.Context, viewerSession session.Session, channelID string) (mediaSpec, error) {
+	channel, err := s.currentChannelForViewer(ctx, viewerSession, channelID, "")
+	if err != nil {
+		return mediaSpec{}, err
+	}
+	return mediaSpec{
+		kind: dispatcharr.MediaKindLive, contentID: channel.ID, streamID: channel.ID,
+		extension: "ts", filename: sanitizeDownloadBase(channel.Name, "Live-TV"),
+	}, nil
+}
+
 func (s *Server) movieMediaSpec(ctx context.Context, viewerSession session.Session, movieID string) (mediaSpec, error) {
 	detail, err := s.movieDetailForViewer(ctx, viewerSession, movieID)
 	if err != nil {
@@ -484,7 +515,17 @@ func (s *Server) relayMedia(
 ) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	stream, err := s.dispatcharr.OpenMedia(ctx, viewerSession.Credentials, spec.kind, spec.streamID, spec.extension, rangeHeader, relayID)
+	var stream dispatcharr.MediaStream
+	var err error
+	if spec.kind == dispatcharr.MediaKindLive {
+		// Live MPEG-TS has no fixed length or seekable byte range. Ignore a
+		// valid VLC probe range and return the current live stream as HTTP 200.
+		var live dispatcharr.LiveStream
+		live, err = s.dispatcharr.OpenLiveStream(ctx, viewerSession.Credentials, spec.streamID)
+		stream = dispatcharr.MediaStream{Body: live.Body, StatusCode: http.StatusOK, ContentType: "video/mp2t", ContentLength: -1}
+	} else {
+		stream, err = s.dispatcharr.OpenMedia(ctx, viewerSession.Credentials, spec.kind, spec.streamID, spec.extension, rangeHeader, relayID)
+	}
 	if err != nil {
 		if ctx.Err() == nil {
 			s.writeMediaError(writer, request, viewerSession.ID, err, revokeOnUnauthorized)
@@ -538,6 +579,9 @@ func (s *Server) relayMedia(
 			_ = controller.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			if _, writeErr := writer.Write(buffer[:read]); writeErr != nil {
 				return
+			}
+			if spec.kind == dispatcharr.MediaKindLive {
+				_ = controller.Flush()
 			}
 			if progress != nil && !progress() {
 				return
@@ -749,6 +793,9 @@ func withExtension(base, extension string) string {
 }
 
 func contentKindLabel(spec mediaSpec, request *http.Request) string {
+	if spec.kind == dispatcharr.MediaKindLive || request.PathValue("channel_id") != "" {
+		return "channel"
+	}
 	if spec.kind == dispatcharr.MediaKindSeries || request.PathValue("episode_id") != "" {
 		return "episode"
 	}
