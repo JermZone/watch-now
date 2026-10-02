@@ -47,3 +47,47 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
           ignore-unfixed: false
+  synthetic-browser:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: react
+            ref: 1625bbfca502d2ff6c8427ed6ca4ca6a40c8522c
+          - label: development
+            ref: 5eeb9bde2f2172459fd4ca56fe5131fca34b0a81
+          - label: mpegts
+            ref: 729b85dfae34ef83200e8b88ec28017d5898ca06
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: qa-harness
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ matrix.ref }}
+          path: candidate
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.21.0'
+      - name: Build exact candidate and install browser driver
+        run: |
+          npm ci --prefix candidate/frontend
+          npm run build --prefix candidate/frontend
+          npm install --prefix "${RUNNER_TEMP}/browser-qa" --no-save playwright@1.55.1
+      - name: Test synthetic video and viewer flows on desktop and phone layouts
+        env:
+          QA_MEDIA: '1'
+          QA_LABEL: ${{ matrix.label }}
+        run: |
+          set -euo pipefail
+          export QA_CHROME=$(command -v google-chrome)
+          export NODE_PATH="${RUNNER_TEMP}/browser-qa/node_modules"
+          ffmpeg -hide_banner -loglevel error -f lavfi -i testsrc2=size=320x180:rate=25 -f lavfi -i sine=frequency=440:sample_rate=48000 -t 20 -c:v libx264 -preset ultrafast -profile:v baseline -pix_fmt yuv420p -g 25 -c:a aac -b:a 96k -f mpegts qa-harness/scripts/sample.ts
+          node qa-harness/scripts/dependency-browser-qa.cjs "$PWD/candidate" "$QA_LABEL"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: browser-${{ matrix.label }}
+          path: qa-harness/scripts/*.png
+          retention-days: 1
