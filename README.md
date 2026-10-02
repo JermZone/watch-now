@@ -13,10 +13,9 @@ account; no channels, subscriptions, or media are supplied.
 ![Live TV browsing with synthetic sample channels](docs/images/live-tv.png)
 
 The screenshot uses sample channels and guide data, not a real viewer's lineup.
-It is an existing interface capture, not evidence of a tested new container.
 
 **[Installation](docs/installation.md)** · [HTTPS hosting](docs/public-hosting.md) ·
-[Support](SUPPORT.md) · [Release checklist](docs/release-readiness.md)
+[Support](SUPPORT.md) · [Release notes](RELEASE_NOTES.md)
 
 ## What it does
 
@@ -25,13 +24,14 @@ It is an existing interface capture, not evidence of a tested new container.
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder.
 
-## Release status
+## Releases
 
-**This is the unpublished Watch Now `1.0.0-rc.3` preparation candidate.** The
-intended new package is `ghcr.io/jermzone/watch-now`. The clean source-repository
-handover is complete, but no new image or stable release has been published.
-Use the separate source-test route in the [installation guide](docs/installation.md)
-until a release provides a verified image tag and digest.
+This source targets **Watch Now 1.0.0**. Check
+[GitHub Releases](https://github.com/JermZone/watch-now/releases) for available
+versions and their verified image digests before installing from
+`ghcr.io/jermzone/watch-now`. A version in the source or Compose examples does not
+mean that image is already published. During preparation, use the separate
+source-test route in the [installation guide](docs/installation.md).
 
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
 unchanged image. Its original source and installation files remain at the
@@ -42,8 +42,8 @@ See [migration](docs/migration.md) and [source provenance](PROVENANCE.md).
 **Known issue:** Watch has been reported to become unresponsive after signing out
 and back in. Investigation is deferred; the cause and a reliable workaround are
 not verified. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains
-open, with the original report retained in the legacy repository. The source
-handover is not a fix for that report.
+open, with the original report retained in the legacy repository. Version 1.0.0
+preparation does not fix that report.
 
 ## Getting started
 

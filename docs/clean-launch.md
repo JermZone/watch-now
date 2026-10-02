@@ -14,13 +14,17 @@ build starts healthy, accepts sign-in, and shows the correct name/version.
 [release readiness](release-readiness.md) distinguishes these checks from earlier
 playback evidence and the remaining registry-image verification.
 
+The `release/1.0.0` preparation aligns the six version files and
+[release notes](../RELEASE_NOTES.md) with **1.0.0**. It does not change playback
+logic, dependencies, or the earlier testing record. A stable-looking version
+number in source is not a publication or approval decision.
+
 ## Remaining launch work
 
-Prepare the final **1.0.0** version metadata and release notes without overwriting
-legacy tags or images. Review repository/package permissions and the deferred
-[Watch-button issue](https://github.com/JermZone/watch-now/issues/11), then approve
-the final source and publication separately. Do not repeat the completed feature
-checklist solely because repository names or documentation changed.
+Review the version-preparation PR and its exact-head CI, repository/package
+permissions, and the deferred [Watch-button issue](https://github.com/JermZone/watch-now/issues/11).
+Approve the final source and publication separately. Do not repeat the completed
+feature checklist solely because names, documentation, or version labels changed.
 
 Build the final versioned image, verify its exact digest, anonymous pull, startup,
 and source/version labels, then publish the reviewed release assets and confirm
