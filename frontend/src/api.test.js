@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  createEpisodeVLC, createMovieVLC, episodeStreamURL, getMovies,
+  createEpisodeVLC, createLiveVLC, createMovieVLC, episodeStreamURL, getMovies,
   movieDownloadURL, movieStreamURL,
 } from './api';
 
@@ -34,5 +34,10 @@ describe('VOD API contract', () => {
     expect(fetchMock.mock.calls[0][1].headers.get('X-CSRF-Token')).toBe('csrf-movie');
     expect(fetchMock.mock.calls[1][0]).toBe('/api/series/4/episodes/9/vlc');
     expect(fetchMock.mock.calls[1][1].headers.get('X-CSRF-Token')).toBe('csrf-episode');
+    const controller = new AbortController();
+    await createLiveVLC('channel/name', 'csrf-live', { signal: controller.signal });
+    expect(fetchMock.mock.calls[2][0]).toBe('/api/live/channels/channel%2Fname/vlc');
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST', credentials: 'same-origin', signal: controller.signal });
+    expect(fetchMock.mock.calls[2][1].headers.get('X-CSRF-Token')).toBe('csrf-live');
   });
 });

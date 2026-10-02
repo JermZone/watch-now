@@ -24,6 +24,7 @@ const acknowledgeVLC = () => {
 const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
+  watchLabel = 'Watch',
 }) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
@@ -175,7 +176,7 @@ const WatchControl = ({
         onClick={playing ? onStop : onWatch}
         type="button"
       >
-        {playbackLoading ? 'Preparing…' : playing ? 'Stop' : 'Watch'}
+        {playbackLoading ? 'Preparing…' : playing ? 'Stop' : watchLabel}
       </button>
       {!playing && (<button
         aria-expanded={open}
@@ -201,9 +202,9 @@ const WatchControl = ({
 			<button disabled={vlcLoading || !onVLC} onClick={() => choose(isAppleMobile() ? requestVLC : onVLC)} role="menuitem" type="button">
 			  {vlcLoading ? 'Preparing VLC…' : isAppleMobile() ? 'Open in VLC' : 'Watch in VLC'}
 			</button>
-		  <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
+          {onDownload && <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
             {downloadLoading ? 'Preparing download…' : 'Download'}
-          </button>
+          </button>}
         </div>
       )}
       {showVLCExplanation && !playing && (

@@ -161,6 +161,7 @@ type LiveStream struct {
 type MediaKind string
 
 const (
+	MediaKindLive   MediaKind = "live"
 	MediaKindMovie  MediaKind = "movie"
 	MediaKindSeries MediaKind = "series"
 )

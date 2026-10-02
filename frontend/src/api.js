@@ -82,6 +82,13 @@ export const artworkURL = (channelID, categoryID) =>
 export const liveStreamURL = (channelID) =>
   channelPath(channelID, 'stream');
 
+export const createLiveVLC = (channelID, csrfToken, { signal } = {}) =>
+  request(channelPath(channelID, 'vlc'), {
+    method: 'POST',
+    headers: { 'X-CSRF-Token': csrfToken },
+    signal,
+  });
+
 export const getMovieCategories = ({ signal } = {}) =>
   request('/api/movies/categories', { signal });
 

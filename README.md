@@ -97,6 +97,31 @@ mobile **Open in VLC** hands off outside the browser. Launch links last one minu
 media links expire after ten minutes without a request, with a six-hour maximum.
 Generate a new playlist after expiry. These are not permanent library URLs.
 
+### Live TV VLC option (unreleased)
+
+The development branch adds VLC to Live TV's **Watch options** menu. During
+browser playback, **Stop** appears by itself, matching Movies and Series. Stop
+playback to restore the Watch options menu. Choose **Open in VLC** on supported
+Apple mobile devices or **Watch in VLC** to download a temporary playlist on
+desktop. Live TV does not offer a download action or seekable byte ranges.
+
+Watch Now stops its browser player before handing off and cancels the browser
+relay when VLC requests the live stream. A failed handoff request leaves browser
+playback available. Once external playback starts, stop or switch the stream
+inside VLC; browsing another channel or returning to details does not stop VLC.
+Signing out of Watch Now revokes its handoffs and cancels their active relays.
+
+Use VLC's own cast-device selector for Chromecast. The maintainer confirmed
+Live TV VLC playback/casting and Movie/Series VLC casting on development
+candidates; see [QA evidence](docs/live-tv-vlc-qa.md) for the scope and limits.
+Chromecast must be able to reach the Watch Now
+media endpoint if VLC supplies the URL to it. Codec/device compatibility still
+applies, and Watch Now does not transcode or automatically choose a cast device.
+This feature is not part of the published 1.0.0 image.
+
+See [separate development testing](docs/development-testing.md) for a tested,
+commit-labeled image and an isolated test stack before release.
+
 Opening Movie/Series details or starting media can cause stock Dispatcharr to
 refresh shared metadata. Poster browsing uses current listings without adding
 provider-detail calls. See [VOD access behavior](docs/vod-current-eligibility.md).

@@ -1,8 +1,9 @@
 import Modal from './Modal';
 import LoadingIndicator from './LoadingIndicator';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
-import { APIError, getCategories, getChannels, getEPG, getLiveSearchCapabilities, logout } from '../api';
+import { APIError, createLiveVLC, getCategories, getChannels, getEPG, getLiveSearchCapabilities, logout } from '../api';
 import ChannelArtwork from './ChannelArtwork';
 import LivePlayer from './LivePlayer';
 import MoviesSection from './MoviesSection';
@@ -13,6 +14,9 @@ import LiveSearchResults, { LiveSearchModes } from './LiveSearchResults';
 import VirtualChannelList from './VirtualChannelList';
 import { filterLiveChannels } from './liveSearch';
 import { applyAppearance, readAppearance } from '../appearance';
+import WatchControl from './WatchControl';
+import VLCPlaylistHandoff from './VLCPlaylistHandoff';
+import { openVLC } from './vlc';
 
 export const PHONE_LAYOUT_QUERY = '(max-width: 600px), (max-height: 500px) and (max-width: 950px) and (orientation: landscape) and (hover: none) and (pointer: coarse)';
 
@@ -93,6 +97,9 @@ const ViewerShell = ({ session, onExpired }) => {
   const [actionError, setActionError] = useState('');
   const [livePlaybackError, setLivePlaybackError] = useState('');
   const [activeLiveID, setActiveLiveID] = useState(null);
+  const [vlcState, setVlcState] = useState({ loading: false, error: '', ready: false, title: '' });
+  const vlcRequestRef = useRef(0);
+  const vlcControllerRef = useRef(null);
   const [now, setNow] = useState(() => Date.now());
   const [channelSelectorOpen, setChannelSelectorOpen] = useState(false);
   const [discoveryModes, setDiscoveryModes] = useState({ live: 'browse', movies: 'browse', series: 'browse' });
@@ -105,6 +112,18 @@ const ViewerShell = ({ session, onExpired }) => {
   };
   const liveMode = programSearchEnabled ? discoveryModes.live : 'browse';
   const selected = liveSelections[liveMode] || (liveMode === 'search' && activeLiveID ? channels.find((channel) => channel.id === activeLiveID) : null);
+  const vlcContextKey = `${section}:${liveMode}:${categoryID}:${selected?.id || ''}`;
+  useLayoutEffect(() => {
+    vlcRequestRef.current += 1;
+    vlcControllerRef.current?.abort();
+    vlcControllerRef.current = null;
+    setVlcState({ loading: false, error: '', ready: false, title: '' });
+    return () => {
+      vlcRequestRef.current += 1;
+      vlcControllerRef.current?.abort();
+      vlcControllerRef.current = null;
+    };
+  }, [vlcContextKey]);
   const setSelected = (value) => setLiveSelections((current) => ({ ...current, [liveMode]: typeof value === 'function' ? value(current[liveMode]) : value }));
   const guideCategoryID = programSearchEnabled && liveMode === 'search' ? '' : categoryID;
   const catalogCategoryID = programSearchEnabled ? '' : categoryID;
@@ -233,6 +252,10 @@ const ViewerShell = ({ session, onExpired }) => {
   }, [channels, debouncedLiveSearch, categoryID, liveMode, programSearchEnabled]);
 
   const signOut = async () => {
+    vlcRequestRef.current += 1;
+    vlcControllerRef.current?.abort();
+    vlcControllerRef.current = null;
+    setVlcState({ loading: false, error: '', ready: false, title: '' });
     setMenuOpen(false);
     setActionError('');
     setActiveLiveID(null);
@@ -260,6 +283,35 @@ const ViewerShell = ({ session, onExpired }) => {
     setActiveLiveID(null);
     setLivePlaybackError(message || 'Live playback failed. Please try again.');
   }, []);
+  const openLiveInVLC = async () => {
+    if (!selected || vlcControllerRef.current) return;
+    const channel = selected;
+    const requestID = ++vlcRequestRef.current;
+    const controller = new AbortController();
+    vlcControllerRef.current = controller;
+    setVlcState((state) => ({ ...state, loading: true, error: '' }));
+    try {
+      const result = await createLiveVLC(channel.id, session.csrf_token, { signal: controller.signal });
+      if (controller.signal.aborted || requestID !== vlcRequestRef.current) return;
+      // Complete LivePlayer teardown before navigating to VLC or downloading
+      // its playlist, including when another channel is playing in the browser.
+      flushSync(() => { setSelected(channel); setActiveLiveID(null); setLivePlaybackError(''); });
+      const mode = openVLC(result.launch_url, channel.name);
+      setVlcState({ loading: false, error: '', ready: mode === 'playlist', title: mode === 'playlist' ? channel.name : '' });
+    } catch (error) {
+      if (controller.signal.aborted || requestID !== vlcRequestRef.current) return;
+      if (error instanceof APIError && error.status === 401) onExpired('Your viewer session expired. Sign in again.');
+      else setVlcState((state) => ({ ...state, loading: false, error: 'VLC handoff could not be completed. Please try again.' }));
+    } finally {
+      if (vlcControllerRef.current === controller) vlcControllerRef.current = null;
+    }
+  };
+  const closeLiveVLCHandoff = () => {
+    vlcRequestRef.current += 1;
+    vlcControllerRef.current?.abort();
+    vlcControllerRef.current = null;
+    setVlcState({ loading: false, error: '', ready: false, title: '' });
+  };
   const playingChannel = channels.find((channel) => channel.id === activeLiveID);
   const selectorLabel = channelsState.loading ? 'Loading channels…' : selected?.name || (channels.length === 0 ? 'No channels available' : 'Choose a channel');
   const sectionLabel = section === 'live' ? 'Live TV' : section === 'movies' ? 'Movies' : 'Series';
@@ -321,12 +373,13 @@ const ViewerShell = ({ session, onExpired }) => {
                 <div id="mobile-channel-list">{channelsState.loading ? <div className="loading-state" role="status"><LoadingIndicator />Loading channels…</div> : channelsState.error ? <div className="panel-error" role="alert"><p>{channelsState.error}</p><button onClick={() => setChannelRetry((value) => value + 1)} type="button">Retry channels</button></div> : <VirtualChannelList categoryID={categoryID} channels={visibleChannels} compact={!isMobile} onSelect={selectChannel} selectedID={selected?.id} />}</div>
               </section>
               <section aria-label={selected ? `Program guide for ${selected.name}` : 'Channel details'} className="detail-panel" ref={detailRef} tabIndex="-1">
-                {selected ? <>
+                {selected ? vlcState.ready ? <VLCPlaylistHandoff error={vlcState.error} loading={vlcState.loading} onBack={closeLiveVLCHandoff} onRetry={openLiveInVLC} title={vlcState.title} /> : <>
                   <div aria-label={`Selected channel: ${selected.name}`} className="channel-identity" role="region">
                     {!isMobile && <><ChannelArtwork categoryID={guideCategoryID} channel={selected} size="compact" /><div className="selected-channel-copy"><h2 title={selected.name}>{selected.name}</h2><p className="detail-meta"><span>{guideCategoryID ? selectedCategory?.name || 'Selected group' : 'All channels'}</span><span aria-hidden="true">·</span><span>{selected.channel_number ? `Channel ${selected.channel_number}` : 'Live channel'}</span></p></div></>}
                     {isMobile && <span className={programSearchEnabled && !browseOpen ? 'selected-mobile-channel' : 'sr-only'}>{selected.name}</span>}
-                    <button className={activeLiveID === selected.id ? 'quiet-button live-watch-button is-stop' : 'primary-button live-watch-button'} onClick={() => { setLivePlaybackError(''); setActiveLiveID((current) => current === selected.id ? null : selected.id); }} type="button">{activeLiveID === selected.id ? 'Stop' : 'Watch Live'}</button>
+                    <WatchControl onStop={() => { closeLiveVLCHandoff(); setActiveLiveID(null); }} onVLC={openLiveInVLC} onWatch={() => { setLivePlaybackError(''); setActiveLiveID(selected.id); }} playbackLoading={vlcState.loading && activeLiveID !== selected.id} playing={activeLiveID === selected.id} selectionKey={`live:${selected.id}`} vlcLoading={vlcState.loading} watchLabel="Watch Live" />
                   </div>
+                  {vlcState.error && <div className="alert" role="alert">{vlcState.error}</div>}
                   {playingChannel && <>
                     {playingChannel.id !== selected.id && <p className="playback-notice">Playing {playingChannel.name} <button onClick={() => setActiveLiveID(null)} type="button">Stop playback</button></p>}
                     <LivePlayer channel={playingChannel} onFatalError={fatalLivePlayback} />

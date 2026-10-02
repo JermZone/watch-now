@@ -21,6 +21,58 @@ func movieParams(sessionID, contentID string) CreateParams {
 	}
 }
 
+func TestLiveHandoffPreservesExpiryAndRevocationBoundaries(t *testing.T) {
+	for _, boundary := range []string{"launch", "idle", "hard", "logout"} {
+		t.Run(boundary, func(t *testing.T) {
+			base := time.Date(2026, 10, 2, 12, 0, 0, 0, time.UTC)
+			now := base
+			store := NewStore(1)
+			store.now = func() time.Time { return now }
+			created, err := store.Create(CreateParams{
+				SessionID: "viewer", Kind: KindLive, ContentID: "41", StreamID: "41",
+				Extension: "ts", DisplayFilename: "World-News.ts",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			media, ok := store.RedeemTicket(created.TicketID)
+			if !ok || media.Kind != KindLive || media.ContentID != "41" {
+				t.Fatal("live ticket lost its channel binding")
+			}
+			switch boundary {
+			case "launch":
+				now = base.Add(HandshakeTTL)
+			case "idle":
+				media, ok = store.ResolveMedia(created.MediaID, true)
+				if !ok {
+					t.Fatal("live media could not be activated")
+				}
+				now = media.ExpiresAt
+			case "hard":
+				for now.Before(created.HardExpiresAt) {
+					if _, ok := store.ResolveMedia(created.MediaID, true); !ok {
+						t.Fatal("active live media expired before its hard limit")
+					}
+					now = now.Add(MediaIdleTTL / 2)
+				}
+			case "logout":
+				store.DeleteSession("viewer")
+			}
+			if _, ok := store.RedeemTicket(created.TicketID); ok {
+				t.Fatal("live launch survived its boundary")
+			}
+			if _, ok := store.ResolveMedia(created.MediaID, false); ok {
+				t.Fatal("live media survived its boundary")
+			}
+			select {
+			case <-media.Revoked():
+			default:
+				t.Fatal("live relay was not notified of revocation")
+			}
+		})
+	}
+}
+
 func TestCreateBindsOpaqueTicketAndMedia(t *testing.T) {
 	base := time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC)
 	store := NewStore(2)
@@ -217,7 +269,7 @@ func TestInvalidInputAndBindingMismatchFailClosed(t *testing.T) {
 	store := NewStore(2)
 	for name, params := range map[string]CreateParams{
 		"session":   {Kind: KindMovie, ContentID: "1", StreamID: "1", Extension: "mp4"},
-		"kind":      {SessionID: "s", Kind: "live", ContentID: "1", StreamID: "1", Extension: "mp4"},
+		"kind":      {SessionID: "s", Kind: "unknown", ContentID: "1", StreamID: "1", Extension: "mp4"},
 		"content":   {SessionID: "s", Kind: KindMovie, StreamID: "1", Extension: "mp4"},
 		"stream":    {SessionID: "s", Kind: KindMovie, ContentID: "1", Extension: "mp4"},
 		"extension": {SessionID: "s", Kind: KindMovie, ContentID: "1", StreamID: "1"},
