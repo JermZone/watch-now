@@ -1,0 +1,16 @@
+name: Bug report
+description: Report a reproducible problem (security issues must be reported privately).
+body:
+  - type: textarea
+    id: versions
+    attributes:
+      label: Versions and environment
+      description: Now version, image digest, Dispatcharr version, browser and device. Never share credentials or playlist links.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected result, and actual result
+    validations:
+      required: true

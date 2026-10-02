@@ -1,0 +1,9 @@
+# Explicit source-build override; do not use with remote Portainer environments.
+services:
+  watch-now:
+    image: watch-now:local
+    pull_policy: build
+    build:
+      context: .
+      args:
+        VERSION: 1.0.0-rc.3

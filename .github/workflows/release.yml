@@ -1,0 +1,97 @@
+name: Release container
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  release:
+    # Leave this variable unset until the target repository is explicitly approved.
+    if: ${{ vars.WATCH_NOW_RELEASE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24.21.0'
+      - name: Verify release and test
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]]
+          version=${RELEASE_TAG#v}
+          test "$version" = "$(node -p "require('./frontend/package.json').version")"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          go test ./...
+          go vet ./...
+          go test -race ./...
+          npm ci --prefix frontend
+          npm test --prefix frontend
+          npm run build --prefix frontend
+          npm audit --prefix frontend --audit-level=high
+          go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+          python3 scripts/test-compose.py
+          python3 scripts/test-latest-image.py
+          python3 scripts/test-release-consistency.py
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build candidate
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          load: true
+          platforms: linux/amd64
+          tags: watch-now:candidate
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+            SOURCE_URL=https://github.com/JermZone/watch-now/tree/${{ github.ref_name }}
+      - name: Scan candidate before publication
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: watch-now:candidate
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish verified image
+        id: publish
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ghcr.io/jermzone/watch-now:${{ env.VERSION }}
+          provenance: mode=max
+          sbom: true
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            REVISION=${{ github.sha }}
+            SOURCE_URL=https://github.com/JermZone/watch-now/tree/${{ github.ref_name }}
+      - name: Assemble release manifest
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          mkdir release
+          git archive --format=tar.gz --prefix="watch-now-$VERSION/" -o "release/watch-now-$VERSION.tar.gz" HEAD
+          printf 'ghcr.io/jermzone/watch-now@%s\n' "$IMAGE_DIGEST" > release/image-digest.txt
+          cd release
+          sha256sum *.tar.gz image-digest.txt > SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-manifest
+          path: release/

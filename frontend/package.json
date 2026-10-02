@@ -1,0 +1,28 @@
+{
+  "name": "watch-now-frontend",
+  "private": true,
+  "version": "1.0.0-rc.3",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 0.0.0.0",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "mpegts.js": "1.8.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "overrides": {
+    "webworkify-webpack": "2.1.5"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.8.0",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "27.0.0",
+    "vite": "8.3.0",
+    "vitest": "4.1.11"
+  }
+}
