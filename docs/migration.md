@@ -1,84 +1,63 @@
-# Source-repository handover and existing-install migration
+# Existing-install migration
 
-## Source handover completed; image migration still pending
+## Current source and image
 
-The clean repository is now
-[JermZone/watch-now](https://github.com/JermZone/watch-now)
-(repository ID `1401082098`). It was initially created as private
-`watch-now-launch`, populated from the reviewed source snapshot, and renamed to
-its final name. It remains private during release preparation.
+The canonical source repository is
+[JermZone/watch-now](https://github.com/JermZone/watch-now).
+Watch Now 1.0.0 is published at
+[GitHub Releases](https://github.com/JermZone/watch-now/releases/tag/v1.0.0),
+with the public image namespace `ghcr.io/jermzone/watch-now`.
 
-The previous development repository is preserved as
-[JermZone/watch-now-legacy](https://github.com/JermZone/watch-now-legacy)
-(repository ID `1380280253`). Its old commits, branches, tags, releases, issues,
-pull requests, and Actions records were not imported into the new Git history.
-The legacy repository has not been deleted or placed into GitHub's archived state.
+The repository was created from a reviewed development snapshot using a clean Git
+history. The former development repository's commits, branches, tags, releases,
+issues, pull requests, and Actions history were intentionally not imported.
+[PROVENANCE.md](../PROVENANCE.md) preserves the source-handover identifiers that
+matter to the current project.
 
-[PROVENANCE.md](../PROVENANCE.md) records the exact source chain and matching tree.
-The clean initial commit passed CI. The maintainer also confirmed healthy startup,
-sign-in, and the name/version on a separate rc.3 source build; see
-[release readiness](release-readiness.md) for limits and earlier testing evidence.
+The deferred Watch-button report is tracked as
+[current issue #11](https://github.com/JermZone/watch-now/issues/11). The current
+issue preserves the original report context and retained regression-test evidence.
 
-## Historical links and local checkouts
-
-The reused `watch-now` address now identifies the new repository. Do not expect
-its old issue, pull-request, release, or commit URLs to redirect to the legacy
-repository. Use the explicit legacy address for historical material, including
-[the v1.0.2 source tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2).
-Current support and source links use `JermZone/watch-now`.
-
-The deferred Watch-button report is now tracked as
-[new issue #11](https://github.com/JermZone/watch-now/issues/11), with its original
-record at [legacy issue #35](https://github.com/JermZone/watch-now-legacy/issues/35).
-No issue number or resolution was assumed to transfer automatically.
-
-Keep the clean launch checkout pointed at `JermZone/watch-now` and every
-history-bearing development checkout pointed at `JermZone/watch-now-legacy`.
-The two checkouts used for this handover have been updated. Review any other
-pre-handover clone before its next push. Do not force-push the old history into
-the new repository, and do not rename or delete working folders unnecessarily.
-
-## Remaining repository/release checks
-
-Recheck repository-specific branch/tag protections, security reporting, Actions
-permissions, app connections, and GHCR access rather than assuming they transferred.
-Leave `WATCH_NOW_RELEASE_ENABLED` unset until publication is approved. Preserve
-unresolved work and historical source access. Archive the legacy repository only
-after its automation, package linkage, references, and rollback needs are reviewed.
-
-The first stable tag in the new repository may be `v1.0.0` after approval. The
-legacy `v1.0.x` tags and `ghcr.io/jermzone/dispatcharr-now` images remain separate;
-do not reuse or overwrite them. Completing the source handover does not publish
-an image, change a running stack, or approve stability.
-
-## Existing Docker/Portainer installation — after verified publication
+## Existing Docker/Portainer installation
 
 Old package: `ghcr.io/jermzone/dispatcharr-now`.
-New package: `ghcr.io/jermzone/watch-now` (not published by the source handover).
 
-Do not change a working stack until the new image is public and verified. Save the
-old image digest, Compose file, environment settings, project/service names, and
-any custom network/reverse-proxy configuration.
+Current package: `ghcr.io/jermzone/watch-now`.
 
 For the least disruptive transition, keep the existing Compose project/service
-name and change **only the image reference** to the tested new digest. The settings
-and ports are retained. Sign-in is required after recreation. Check the updated
-stack before accepting the change, and roll back by restoring its previous image
-and configuration. No persistent app data needs migration. This production change
-is separate from the completed source-repository handover.
+name and change **only the image reference** to the tested Watch Now image. Save
+the old image digest, Compose file, environment settings, project/service names,
+and any custom network or reverse-proxy configuration first.
 
-The clean Compose example names its service `watch-now`. Applying it over a stack
-with service `dispatcharr-now` can create a second service/port conflict. Use it for
-a fresh test stack, or deliberately retire the old service after saving rollback
-information. Do not use broad prune or remove-orphans commands blindly.
+The verified 1.0.0 image is:
 
-The internal executable is now `/watch-now`; the image's healthcheck/entrypoint are
-updated together. Review custom scripts that hard-code `/dispatcharr-now`. Old
-household-specific scripts are deliberately absent from the public snapshot, but
-remain in legacy history where needed.
+`ghcr.io/jermzone/watch-now@sha256:3db3b5f3655eed2579797800aeb965b69081c161271bbd577b61fc7f73dd7bc5`
+
+The stable `latest` tag was promoted to that same digest after the 1.0.0 release
+was published.
+
+Recreating the app requires viewers to sign in again because sessions are held
+in memory. No database migration is required.
+
+The clean Compose example names its service `watch-now`. Applying it over an
+existing stack whose service is named `dispatcharr-now` can create a second
+service and a port conflict. For an existing installation, preserve the existing
+service name unless you deliberately intend to retire and replace it.
+
+The internal executable is now `/watch-now`; the image healthcheck and entrypoint
+are updated together. Review any custom scripts that hard-code
+`/dispatcharr-now`.
+
+## Rollback
+
+Rollback does not depend on the former source repository. Restore the saved prior
+image digest and the prior Compose/environment configuration, then recreate the
+service. The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a
+separate historical image and is not modified by Watch Now releases.
 
 ## Reference
 
-- [GitHub repository renaming](https://docs.github.com/en/repositories/creating-and-managing-repositories/renaming-a-repository)
-- [GitHub repository archiving](https://docs.github.com/en/repositories/archiving-a-github-repository/archiving-repositories)
+- [Installation](installation.md)
+- [Release readiness](release-readiness.md)
+- [Source provenance](../PROVENANCE.md)
 - [Semantic versioning](https://semver.org/)
