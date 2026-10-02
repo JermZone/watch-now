@@ -8,7 +8,7 @@ use **Docker image / Portainer** only after a release supplies a verified tag/di
 The prepared image defaults must not be treated as an availability announcement.
 
 For the unchanged earlier beta, use the files at its
-[original v1.0.2 source tag](https://github.com/JermZone/watch-now/tree/v1.0.2), not
+[original v1.0.2 source tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2), not
 this candidate's Compose files. Existing deployments should first read
 [Migration](migration.md).
 
