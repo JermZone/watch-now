@@ -2,15 +2,15 @@ import { afterEach, expect, it, vi } from 'vitest';
 import mpegts from 'mpegts.js';
 import { installLiveTrackGuard } from './liveTrackGuard';
 
-const installMediaSource = (rejectType = 'audio') => {
+const installMediaSource = (rejectType = 'audio', initialState = 'open') => {
   class MediaSourceStub {
-    readyState = 'open';
+    readyState = initialState;
     addEventListener() {}
     removeEventListener() {}
     removeSourceBuffer() {}
     endOfStream() {}
     addSourceBuffer(mime) {
-      if (mime.startsWith(rejectType)) throw new DOMException('Unsupported track', 'NotSupportedError');
+      if (rejectType === 'both' || mime.startsWith(rejectType)) throw new DOMException('Unsupported track', 'NotSupportedError');
       return {
         updating: false, buffered: { length: 0 },
         addEventListener() {}, removeEventListener() {},
@@ -60,7 +60,55 @@ it.each(['audio', 'video'])('drops rejected %s chunks while the other track keep
 it('refuses unverified library versions and controller shapes', () => {
   expect(installLiveTrackGuard({}, '1.8.0')).toBeNull();
   expect(installLiveTrackGuard({ _player_engine: { _mse_controller: {} } }, '1.8.0')).toBeNull();
-  expect(installLiveTrackGuard({}, '1.8.2')).toBeNull();
+  expect(installLiveTrackGuard({}, '1.8.3')).toBeNull();
+});
+
+it('refuses an unreviewed version even when its controller shape looks supported', () => {
+  installMediaSource();
+  const player = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: '/unused' }, { enableWorker: false });
+  player.attachMediaElement(document.createElement('video'));
+  expect(installLiveTrackGuard(player, '1.8.1')).toBeNull();
+  expect(installLiveTrackGuard(player, '1.8.3')).toBeNull();
+  player.destroy();
+});
+
+it('clears rejected media queued before the source opens while appending the supported track', () => {
+  installMediaSource('audio', 'closed');
+  const player = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: '/unused' }, { enableWorker: false });
+  player.attachMediaElement(document.createElement('video'));
+  const guard = installLiveTrackGuard(player, mpegts.version);
+  const controller = player._player_engine._mse_controller;
+  let rejection;
+  player.on(mpegts.Events.ERROR, () => { rejection = guard.rejectInitializingTrack(); });
+  for (const type of ['video', 'audio']) {
+    controller.appendInitSegment({ type, container: `${type}/mp4`, codec: type === 'audio' ? 'ec-3' : 'avc1.640028', data: new ArrayBuffer(4) });
+    controller.appendMediaSegment({ type, data: new ArrayBuffer(4) });
+  }
+  expect(controller._pendingSegments.audio.length).toBeGreaterThan(0);
+  controller._mediaSource.readyState = 'open';
+  controller._onSourceOpen();
+  expect(rejection).toEqual({ track: 'audio', allRejected: false });
+  expect(controller._pendingSegments.audio).toHaveLength(0);
+  expect(controller._sourceBuffers.video.appendBuffer).toHaveBeenCalled();
+  expect(guard.rejectInitializingTrack()).toBeNull();
+  player.destroy();
+});
+
+it('reports both rejected tracks without accumulating either media queue', () => {
+  installMediaSource('both');
+  const player = mpegts.createPlayer({ type: 'mpegts', isLive: true, url: '/unused' }, { enableWorker: false });
+  player.attachMediaElement(document.createElement('video'));
+  const guard = installLiveTrackGuard(player, mpegts.version);
+  const controller = player._player_engine._mse_controller;
+  const rejections = [];
+  player.on(mpegts.Events.ERROR, () => rejections.push(guard.rejectInitializingTrack()));
+  for (const type of ['audio', 'video']) {
+    controller.appendInitSegment({ type, container: `${type}/mp4`, codec: 'unsupported', data: new ArrayBuffer(4) });
+    for (let i = 0; i < 1000; i += 1) controller.appendMediaSegment({ type, data: new ArrayBuffer(256) });
+    expect(controller._pendingSegments[type]).toHaveLength(0);
+  }
+  expect(rejections).toEqual([{ track: 'audio', allRejected: false }, { track: 'video', allRejected: true }]);
+  player.destroy();
 });
 
 it('does not attribute errors outside source-buffer initialization to a track', () => {

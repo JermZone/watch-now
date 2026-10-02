@@ -9,12 +9,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "mpegts.js": "1.8.0",
+    "mpegts.js": "1.8.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
-  },
-  "overrides": {
-    "webworkify-webpack": "2.1.5"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "7.0.1",
