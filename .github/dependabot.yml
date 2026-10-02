@@ -6,6 +6,11 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     groups:
+      react-runtime:
+        dependency-type: production
+        patterns:
+          - react
+          - react-dom
       development:
         dependency-type: development
   - package-ecosystem: gomod
