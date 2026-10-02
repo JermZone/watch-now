@@ -74,7 +74,7 @@ describe('Live TV VLC handoff', () => {
     expect(screen.getByTestId('live-player')).toHaveTextContent('Playing World News');
   });
 
-  it('offers the Apple handoff and explanation during active browser playback, stopping the player before opening VLC', async () => {
+  it('shows a plain Stop during browser playback and restores the Apple VLC option after stopping', async () => {
     vlcMocks.isAppleMobile.mockReturnValue(true);
     vlcMocks.openVLC.mockImplementation(() => {
       expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
@@ -85,6 +85,9 @@ describe('Live TV VLC handoff', () => {
     renderViewer();
     await user.click(await screen.findByRole('button', { name: 'Watch Live' }));
     expect(screen.getByTestId('live-player')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Watch options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Open in VLC' }));
     const dialog = screen.getByRole('dialog', { name: 'Open in VLC' });
@@ -114,6 +117,7 @@ describe('Live TV VLC handoff', () => {
     const user = userEvent.setup();
     renderViewer();
     await user.click(await screen.findByRole('button', { name: 'Watch Live' }));
+    await user.click(screen.getByRole('option', { name: 'Sports Plus' }));
     await user.click(screen.getByRole('button', { name: 'Watch options' }));
     await user.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
     expect(await screen.findByText('VLC handoff could not be completed. Please try again.')).toBeInTheDocument();
@@ -131,25 +135,22 @@ describe('Live TV VLC handoff', () => {
     expect(vlcMocks.openVLC).not.toHaveBeenCalled();
   });
 
-  it('keeps Stop available while preparing VLC and cancels that pending handoff', async () => {
-    let resolveHandoff;
-    let signal;
-    installAPI((_input, options) => {
-      signal = options.signal;
-      return new Promise((resolve) => { resolveHandoff = resolve; });
-    });
+  it('restores the desktop VLC menu after Stop without offering a live Download action', async () => {
+    installAPI();
     const user = userEvent.setup();
     renderViewer();
-    await user.click(await screen.findByRole('button', { name: 'Watch Live' }));
-    await user.click(screen.getByRole('button', { name: 'Watch options' }));
-    await user.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    const watch = await screen.findByRole('button', { name: 'Watch Live' });
+    await user.click(watch);
     const stop = screen.getByRole('button', { name: 'Stop' });
+    expect(stop).toBe(watch);
     expect(stop).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
     await user.click(stop);
-    expect(signal.aborted).toBe(true);
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
-    await act(async () => { resolveHandoff(await jsonResponse({ launch_url: launchURL }, 201)); });
-    expect(vlcMocks.openVLC).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Watch Live' })).toBe(watch);
+    await requestVLC(user);
+    expect(await screen.findByText('Ready to watch in VLC')).toBeInTheDocument();
+    expect(vlcMocks.openVLC).toHaveBeenCalledWith(launchURL, 'World News');
   });
 
   it.each(['channel', 'category', 'section', 'sign out', 'unmount'])('ignores a pending handoff after changing %s', async (change) => {

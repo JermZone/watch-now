@@ -24,7 +24,7 @@ const acknowledgeVLC = () => {
 const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
-  watchLabel = 'Watch', showOptionsWhilePlaying = false,
+  watchLabel = 'Watch',
 }) => {
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
@@ -169,7 +169,7 @@ const WatchControl = ({
   };
 
   return (
-    <div className={`watch-control ${playing ? 'is-playing' : ''}${showOptionsWhilePlaying ? ' has-playing-options' : ''}`} ref={rootRef}>
+    <div className={`watch-control ${playing ? 'is-playing' : ''}`} ref={rootRef}>
       <button
         className={`primary-button watch-primary ${playing ? 'is-stop' : ''}`}
         disabled={playbackLoading}
@@ -178,7 +178,7 @@ const WatchControl = ({
       >
         {playbackLoading ? 'Preparing…' : playing ? 'Stop' : watchLabel}
       </button>
-      {(!playing || showOptionsWhilePlaying) && (<button
+      {!playing && (<button
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Watch options"
@@ -189,7 +189,7 @@ const WatchControl = ({
       >
         <span aria-hidden="true" className="selector-chevron" />
       </button>)}
-      {open && (!playing || showOptionsWhilePlaying) && (
+      {open && !playing && (
 		<div
           className={`watch-menu is-${menuPosition?.placement || 'below'}`}
           ref={menuRef}
@@ -207,7 +207,7 @@ const WatchControl = ({
           </button>}
         </div>
       )}
-      {showVLCExplanation && (!playing || showOptionsWhilePlaying) && (
+      {showVLCExplanation && !playing && (
         <Modal labelledBy="vlc-dialog-title" initialFocusRef={confirmRef} returnFocusRef={triggerRef} onClose={() => setShowVLCExplanation(false)}>
             <h3 id="vlc-dialog-title">Open in VLC</h3>
             <p>VLC opens outside your browser and may play formats your browser cannot.</p>

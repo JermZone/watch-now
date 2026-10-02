@@ -99,8 +99,9 @@ Generate a new playlist after expiry. These are not permanent library URLs.
 
 ### Live TV VLC option (unreleased)
 
-The development branch adds VLC to Live TV's **Watch options** menu, including
-while a channel is playing in the browser. Choose **Open in VLC** on supported
+The development branch adds VLC to Live TV's **Watch options** menu. During
+browser playback, **Stop** appears by itself, matching Movies and Series. Stop
+playback to restore the Watch options menu. Choose **Open in VLC** on supported
 Apple mobile devices or **Watch in VLC** to download a temporary playlist on
 desktop. Live TV does not offer a download action or seekable byte ranges.
 
