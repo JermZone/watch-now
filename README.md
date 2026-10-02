@@ -26,24 +26,23 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 
 ## Releases
 
-This source targets **Watch Now 1.0.0**. Check
-[GitHub Releases](https://github.com/JermZone/watch-now/releases) for available
-versions and their verified image digests before installing from
-`ghcr.io/jermzone/watch-now`. A version in the source or Compose examples does not
-mean that image is already published. During preparation, use the separate
-source-test route in the [installation guide](docs/installation.md).
+**Watch Now 1.0.0** is published. Check
+[GitHub Releases](https://github.com/JermZone/watch-now/releases) for release notes,
+source assets, checksums, and the verified image digest. Install from
+`ghcr.io/jermzone/watch-now:1.0.0` or the stable `latest` tag.
 
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
-unchanged image. Its original source and installation files remain at the
-[legacy release tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2).
-Do not replace a working stack based only on the repository's new name.
-See [migration](docs/migration.md) and [source provenance](PROVENANCE.md).
+unchanged historical image. The clean Watch Now repository intentionally does not
+import the former development repository's Git history. Relevant source-handover
+identifiers and validation evidence are preserved in
+[source provenance](PROVENANCE.md) and [release readiness](docs/release-readiness.md).
+See [migration](docs/migration.md) before changing an existing installation.
 
 **Known issue:** Watch has been reported to become unresponsive after signing out
 and back in. Investigation is deferred; the cause and a reliable workaround are
 not verified. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains
-open, with the original report retained in the legacy repository. Version 1.0.0
-preparation does not fix that report.
+open. The current issue preserves the original report context and retained test
+evidence. Version 1.0.0 does not fix that report.
 
 ## Getting started
 
@@ -74,8 +73,8 @@ before exposing Watch Now to the internet.
 These playback records are from development, not a repeat on the new image.
 The maintainer also confirmed that the rc.3 source-built test container was
 healthy, accepted sign-in, and displayed the correct name/version. See
-[release readiness](docs/release-readiness.md) for the evidence and remaining
-published-image checks.
+[release readiness](docs/release-readiness.md) for the recorded release evidence
+and validation limits.
 
 Desktop **Watch in VLC** downloads a temporary playlist; open it promptly. Apple
 mobile **Open in VLC** hands off outside the browser. Launch links last one minute;
