@@ -111,9 +111,10 @@ playback available. Once external playback starts, stop or switch the stream
 inside VLC; browsing another channel or returning to details does not stop VLC.
 Signing out of Watch Now revokes its handoffs and cancels their active relays.
 
-Use VLC's own cast-device selector for Chromecast. Movie and Series casting has
-been confirmed by the maintainer; Live TV VLC and Chromecast playback remain
-pending manual device validation. Chromecast must be able to reach the Watch Now
+Use VLC's own cast-device selector for Chromecast. The maintainer confirmed
+Live TV VLC playback/casting and Movie/Series VLC casting on development
+candidates; see [QA evidence](docs/live-tv-vlc-qa.md) for the scope and limits.
+Chromecast must be able to reach the Watch Now
 media endpoint if VLC supplies the URL to it. Codec/device compatibility still
 applies, and Watch Now does not transcode or automatically choose a cast device.
 This feature is not part of the published 1.0.0 image.
