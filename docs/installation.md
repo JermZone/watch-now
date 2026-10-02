@@ -9,7 +9,7 @@ If the desired release is not available yet, use **Source testing** below.
 The version in the example files is not itself an availability announcement.
 
 For the unchanged earlier beta, use the files at its
-[original v1.0.2 source tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2), not
+the historical `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta, not
 this version's Compose files. Existing deployments should first read
 [Migration](migration.md).
 
