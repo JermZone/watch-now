@@ -11,7 +11,7 @@
   "dependencies": {
     "mpegts.js": "1.8.0",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.3.0"
   },
   "overrides": {
     "webworkify-webpack": "2.1.5"
