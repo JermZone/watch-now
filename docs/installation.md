@@ -2,14 +2,15 @@
 
 [Back to Watch Now](../README.md)
 
-**Preparation candidate: `1.0.0-rc.3`.** The new `ghcr.io/jermzone/watch-now` image
-is not published or verified by this cleanup. Use **Source testing** below now;
-use **Docker image / Portainer** only after a release supplies a verified tag/digest.
-The prepared image defaults must not be treated as an availability announcement.
+**Source version: `1.0.0`.** Use **Docker image / Portainer** only when
+[GitHub Releases](https://github.com/JermZone/watch-now/releases) supplies a
+published version and verified image digest for `ghcr.io/jermzone/watch-now`.
+If the desired release is not available yet, use **Source testing** below.
+The version in the example files is not itself an availability announcement.
 
 For the unchanged earlier beta, use the files at its
 [original v1.0.2 source tag](https://github.com/JermZone/watch-now-legacy/tree/v1.0.2), not
-this candidate's Compose files. Existing deployments should first read
+this version's Compose files. Existing deployments should first read
 [Migration](migration.md).
 
 ## Before starting
@@ -23,7 +24,7 @@ examples here do not modify an existing installation or create Dispatcharr itsel
 
 ## Source testing
 
-Check out the reviewed candidate revision into a separate source folder. From
+Check out the reviewed source revision into a separate source folder. From
 that folder, prepare settings:
 
 ```sh

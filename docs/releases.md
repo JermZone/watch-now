@@ -1,8 +1,9 @@
 # Maintainer release procedure
 
 Read [release readiness](release-readiness.md) before publishing. The clean
-source-repository handover is complete; imported preparation is **1.0.0-rc.3**.
-The planned **1.0.0** is the first stable release of the new repository/package.
+source-repository handover is complete. The source is prepared for **1.0.0** from
+the imported **1.0.0-rc.3** snapshot. Version metadata and release notes do not
+approve stable publication or establish that a registry image exists.
 The earlier v1.0.2 remains in [watch-now-legacy](https://github.com/JermZone/watch-now-legacy/releases/tag/v1.0.2);
 do not replace or relabel that historical release.
 
@@ -15,14 +16,20 @@ Update the root package/lock metadata, both image-only Compose defaults, source
 Compose build argument, and `.env.example` together. The Makefile/CI read the
 package version instead of hard-coding one. Use `-rc.N` during testing and a new
 candidate number after changing a tagged/published candidate. The imported rc.3
-snapshot has not been tagged or published by the source handover. The workflow
-accepts stable and `-rc.N` tags.
+snapshot was not tagged or published by the source handover. The workflow accepts
+stable and `-rc.N` tags.
 
 Run all CI checks, including release-consistency and promotion tests. Read the diff
 and license/source notices. Keep stable release approval separate from green CI.
 Use the evidence policy in [release readiness](release-readiness.md): retain the
 maintainer's earlier feature tests and completed source-install check without
 presenting them as newly repeated tests of a registry image.
+
+Finalize the README, installation wording, and [release notes](../RELEASE_NOTES.md)
+before creating the release tag. Keep publication status conditional on the actual
+GitHub release and verified image; do not claim a build or pull passed in advance.
+Record later CI and distribution results in the release PR and release record so
+the tagged source does not need rewriting to add evidence.
 
 ## Build and validate
 
@@ -49,8 +56,9 @@ Public and private vulnerability reporting is available in the new repository.
 
 Publish an RC as a prerelease, never as stable. Once the stable source/image is
 approved, publish the stable GitHub release with the exact manifest assets and
-honest notes. Refresh the README/release-readiness record before the final tag;
-any source change after a tag needs a new version/candidate and revalidation.
+honest notes. Include the verified digest and actual check results, retain the
+known issue and limitations from the prepared release notes, and keep unrun checks
+explicit. Any source change after a tag needs a new version/candidate and revalidation.
 
 Only the newest published **stable** semantic version can become `latest`. The
 promotion script rejects drafts, missing/non-boolean release flags, prereleases,
