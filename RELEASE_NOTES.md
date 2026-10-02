@@ -4,10 +4,9 @@
 
 *A web player for Dispatcharr.*
 
-Release notes for the first Watch Now version line. See
-[GitHub Releases](https://github.com/JermZone/watch-now/releases) for publication
-status, matching source assets, checksums, and the verified image digest.
-Preparing these notes does not publish a release or update an installed container.
+Release notes for the first stable Watch Now version. The published
+[GitHub Release](https://github.com/JermZone/watch-now/releases/tag/v1.0.0)
+contains the matching source asset, checksums, and verified image digest.
 
 ### Highlights
 
@@ -48,10 +47,9 @@ maintainer separately confirmed a healthy rc.3 source-built test container,
 successful sign-in, and the correct About version. The full playback checklist
 was not repeated for the subsequent naming, documentation, and version changes.
 
-Automated checks and final-image distribution checks must be recorded against
-their actual commit and image digest. See [release readiness](docs/release-readiness.md)
-for the evidence and outstanding publication steps; these notes alone are not a
-claim that the final registry image has been tested or published.
+Automated checks and final-image distribution checks are recorded against their
+actual commit and image digest. See [release readiness](docs/release-readiness.md)
+for the evidence and validation limits.
 
 ### Installing and upgrading
 
@@ -66,14 +64,29 @@ service name when changing only its image; copying the new service name over an
 old stack can create a second service and a port conflict. No database migration
 is required, but viewers must sign in after a restart.
 
-The earlier `dispatcharr-now:1.0.2` beta and its historical releases remain
-separate and unchanged in [watch-now-legacy](https://github.com/JermZone/watch-now-legacy).
-Licenses, notices, and [source provenance](PROVENANCE.md) are retained.
+The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
+unchanged historical image. Its Git history is not part of this clean repository;
+the relevant handover identifiers are preserved in [source provenance](PROVENANCE.md).
+Licenses and third-party notices remain retained.
 
 ## Preparation history
 
 The imported `1.0.0-rc.3` snapshot aligned package names, removed household-specific
-tooling from the new source snapshot, preserved session tests and runtime settings,
-and added stable-only release-promotion checks. The 1.0.0 preparation changes only
-version metadata and documentation; no new playback fix or dependency upgrade is
+tooling from the clean source snapshot, preserved session tests and runtime settings,
+and added stable-only release-promotion checks. The 1.0.0 preparation changed only
+version metadata and documentation; no new playback fix or dependency upgrade was
 included.
+
+## Verified distribution
+
+Published image:
+`ghcr.io/jermzone/watch-now@sha256:3db3b5f3655eed2579797800aeb965b69081c161271bbd577b61fc7f73dd7bc5`
+
+The release workflow passed its tests, build, and pre-publication candidate scan.
+The maintainer verified anonymous download, Linux AMD64/version/source labels, and
+healthy startup of the published image on an isolated stack. The published-release
+promotion workflow then verified the checksummed digest and promoted that exact
+image to `latest`.
+
+Earlier playback results are retained; the full feature checklist was not repeated
+on this image. The deferred Watch-button issue remains open.
