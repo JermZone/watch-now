@@ -1,0 +1,18 @@
+# Use a separate stack/project name. This stack has no shared volumes.
+services:
+  watch-now-test:
+    image: ${NOW_TEST_IMAGE:?Set NOW_TEST_IMAGE to a verified development image digest}
+    restart: unless-stopped
+    ports:
+      - "${NOW_TEST_HOST_BIND:-127.0.0.1}:${NOW_TEST_HOST_PORT:-9194}:8080"
+    environment:
+      DISPATCHARR_URL: ${DISPATCHARR_URL:?Set DISPATCHARR_URL to an address reachable from this container}
+      NOW_COOKIE_SECURE: ${NOW_COOKIE_SECURE:-auto}
+      NOW_TRUST_PROXY_HEADERS: ${NOW_TRUST_PROXY_HEADERS:-false}
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 100
+    mem_limit: 256m

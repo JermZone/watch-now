@@ -1,0 +1,108 @@
+name: Development image
+
+on:
+  push:
+    branches: ['feature/**']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: development-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.27.1'
+          cache: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24.21.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: go test ./...
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 -shellcheck= -pyflakes=
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: python3 scripts/test-compose.py
+      - run: python3 scripts/test-latest-image.py
+      - run: python3 scripts/test-release-consistency.py
+      - name: Build development candidate
+        id: image
+        env:
+          REVISION: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          version="dev-${REVISION:0:12}"
+          image="ghcr.io/${REPOSITORY,,}:dev-$REVISION"
+          docker build --build-arg "VERSION=$version" --build-arg "REVISION=$REVISION" \
+            --build-arg "SOURCE_URL=https://github.com/$REPOSITORY/tree/$REVISION" \
+            --tag watch-now:development .
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+      - name: Scan development candidate
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
+        with:
+          image-ref: watch-now:development
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false
+      - name: Smoke test the scanned image
+        env:
+          VERSION: ${{ steps.image.outputs.version }}
+          REVISION: ${{ github.sha }}
+        run: |
+          test "$(docker image inspect --format '{{.Architecture}}' watch-now:development)" = amd64
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' watch-now:development)" = "$VERSION"
+          test "$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' watch-now:development)" = "$REVISION"
+          docker run --detach --name watch-now-smoke --network none --read-only \
+            --security-opt no-new-privileges --cap-drop ALL --pids-limit 100 --memory 256m \
+            --env DISPATCHARR_URL=http://127.0.0.1:9 --env NOW_PROGRAM_SEARCH_ENABLED=false \
+            watch-now:development
+          trap 'docker rm --force watch-now-smoke >/dev/null' EXIT
+          for attempt in {1..15}; do
+            if docker exec watch-now-smoke /watch-now healthcheck; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Sign in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish the scanned and smoke-tested image
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          VERSION: ${{ steps.image.outputs.version }}
+        run: |
+          docker tag watch-now:development "$IMAGE"
+          docker push "$IMAGE"
+          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
+          {
+            echo "Development build: $VERSION"
+            echo
+            echo "Pinned image: \`$digest\`"
+            echo
+            echo 'For a separate test installation; stable and latest tags are unchanged.'
+          } >> "$GITHUB_STEP_SUMMARY"

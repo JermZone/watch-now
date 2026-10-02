@@ -117,6 +117,9 @@ media endpoint if VLC supplies the URL to it. Codec/device compatibility still
 applies, and Watch Now does not transcode or automatically choose a cast device.
 This feature is not part of the published 1.0.0 image.
 
+See [separate development testing](docs/development-testing.md) for a tested,
+commit-labeled image and an isolated test stack before release.
+
 Opening Movie/Series details or starting media can cause stock Dispatcharr to
 refresh shared metadata. Poster browsing uses current listings without adding
 provider-detail calls. See [VOD access behavior](docs/vod-current-eligibility.md).
