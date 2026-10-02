@@ -41,13 +41,15 @@ def validate_release(tag, releases):
 def validate_manifest(tag, digest_bytes, checksum_bytes):
     version(tag)
     expected_name = f"watch-now-{tag[1:]}.tar.gz"
+    required_names = {expected_name, "image-digest.txt"}
+    allowed_names = required_names | {f"watch-now-{tag[1:]}-install.zip"}
     checksums = {}
     for line in checksum_bytes.decode("ascii").splitlines():
         match = re.fullmatch(r"([0-9a-f]{64})\s+\*?(.+)", line)
-        if not match or match[2] not in {expected_name, "image-digest.txt"} or match[2] in checksums:
+        if not match or match[2] not in allowed_names or match[2] in checksums:
             raise ValueError("Invalid release checksum manifest")
         checksums[match[2]] = match[1]
-    if set(checksums) != {expected_name, "image-digest.txt"}:
+    if not required_names <= set(checksums):
         raise ValueError("Missing release checksum entries")
     if hashlib.sha256(digest_bytes).hexdigest() != checksums["image-digest.txt"]:
         raise ValueError("Image digest checksum mismatch")
