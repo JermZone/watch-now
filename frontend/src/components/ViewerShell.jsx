@@ -138,6 +138,14 @@ const ViewerShell = ({ session, onExpired }) => {
   const effectiveMoviesSearch = programSearchEnabled && discoveryModes.movies === 'browse' ? '' : debouncedMoviesSearch;
   const effectiveSeriesSearch = programSearchEnabled && discoveryModes.series === 'browse' ? '' : debouncedSeriesSearch;
   const detailRef = useRef(null);
+  const livePlayerRef = useRef(null);
+  const [guideWatchRequest, setGuideWatchRequest] = useState(0);
+  useEffect(() => {
+    if (!guideWatchRequest) return;
+    // Run after the airing dialog closes and restores its previous focus.
+    livePlayerRef.current?.focus({ preventScroll: true });
+    livePlayerRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+  }, [guideWatchRequest]);
   const searchResultsRef = useRef(null);
   const pendingSearchFocus = useRef(false);
   const pendingDetailFocus = useRef(false);
@@ -367,7 +375,7 @@ const ViewerShell = ({ session, onExpired }) => {
       {section === 'dvr' ? <DVRSection dvr={dvr} mode={discoveryMode} search={searches.dvr} onFind={programSearchEnabled ? () => { changeSection('live'); setDiscoveryModes((m) => ({ ...m, live: 'search' })); setLiveSearchScope('upcoming'); setLiveSearchDetail(false); } : undefined} /> : programSearchEnabled && section !== 'live' && discoveryMode === 'search' && !(section === 'movies' ? effectiveMoviesSearch : effectiveSeriesSearch).trim() ? <p className="empty-state">{section === 'movies' ? 'Search for a movie by title.' : 'Search for a series by title.'}</p> : section === 'movies' ? <MoviesSection key={programSearchEnabled ? discoveryMode : 'legacy'} browseSelection={movieBrowse} categories={movieCategories} onBrowseSelectionChange={setMovieBrowse} onCategoriesLoaded={setMovieCategories} onExpired={onExpired} search={effectiveMoviesSearch} session={session} />
         : section === 'series' ? <SeriesSection key={programSearchEnabled ? discoveryMode : 'legacy'} browseSelection={seriesBrowse} categories={seriesCategories} onBrowseSelectionChange={setSeriesBrowse} onCategoriesLoaded={setSeriesCategories} onExpired={onExpired} search={effectiveSeriesSearch} session={session} />
           : <>
-            {tvGuideEnabled && <TVGuide active={liveMode === 'guide'} categories={categories} channels={channels} isMobile={isMobile} onExpired={onExpired} channelID={guideChannelID} onChannelChange={setGuideChannelID} onWatch={(channel) => { setLiveSelections((current) => ({ ...current, guide: channel })); setLivePlaybackError(''); setActiveLiveID(channel.id); }} onRecord={dvrEnabled ? setRecordProgram : undefined} />}
+            {tvGuideEnabled && <TVGuide active={liveMode === 'guide'} categories={categories} channels={channels} isMobile={isMobile} onExpired={onExpired} channelID={guideChannelID} onChannelChange={setGuideChannelID} onWatch={(channel) => { closeLiveVLCHandoff(); setLiveSelections((current) => ({ ...current, guide: channel })); setLivePlaybackError(''); setActiveLiveID(channel.id); setGuideWatchRequest((value) => value + 1); }} onRecord={dvrEnabled ? setRecordProgram : undefined} />}
             <section hidden={liveMode === 'guide'} className={`catalog-toolbar${programSearchEnabled ? ' compact-browsing' : ''}`} aria-labelledby="live-heading">
               <div className="live-summary"><h2 className="sr-only" id="live-heading">Live TV</h2>{(!programSearchEnabled || browseOpen) && <p aria-live="polite">{visibleChannels.length} {visibleChannels.length === 1 ? 'channel' : 'channels'}</p>}</div>
               <div className="browse-controls" hidden={programSearchEnabled && !browseOpen} id="live-browse-controls">
@@ -394,7 +402,7 @@ const ViewerShell = ({ session, onExpired }) => {
                   {vlcState.error && <div className="alert" role="alert">{vlcState.error}</div>}
                   {playingChannel && <>
                     {playingChannel.id !== selected.id && <p className="playback-notice">Playing {playingChannel.name} <button onClick={() => setActiveLiveID(null)} type="button">Stop playback</button></p>}
-                    <LivePlayer channel={playingChannel} onFatalError={fatalLivePlayback} />
+                    <div aria-label="Live playback" ref={livePlayerRef} role="region" tabIndex="-1"><LivePlayer channel={playingChannel} onFatalError={fatalLivePlayback} /></div>
                   </>}
                   {livePlaybackError && <div className="alert playback-error" role="alert">{livePlaybackError}</div>}
                   {liveMode === 'search' && liveSearchDetail && selectedAiring && selectedAiring.channel.id === selected.id && <article className="program-card selected-airing"><p className="guide-kicker">Selected airing</p><h3>{selectedAiring.title}</h3>{selectedAiring.subtitle && <p>{selectedAiring.subtitle}</p>}<p>{airingTime(selectedAiring)}</p>{selectedAiring.description && <p>{selectedAiring.description}</p>}<RecordButton program={selectedAiring} onRecord={dvrEnabled ? setRecordProgram : undefined} /></article>}
