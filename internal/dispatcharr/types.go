@@ -161,9 +161,10 @@ type LiveStream struct {
 type MediaKind string
 
 const (
-	MediaKindLive   MediaKind = "live"
-	MediaKindMovie  MediaKind = "movie"
-	MediaKindSeries MediaKind = "series"
+	MediaKindRecording MediaKind = "recording"
+	MediaKindLive      MediaKind = "live"
+	MediaKindMovie     MediaKind = "movie"
+	MediaKindSeries    MediaKind = "series"
 )
 
 // MediaStream contains only response metadata that is safe and useful to a

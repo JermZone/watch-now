@@ -39,9 +39,10 @@ var (
 type ContentKind string
 
 const (
-	KindLive    ContentKind = "live"
-	KindMovie   ContentKind = "movie"
-	KindEpisode ContentKind = "episode"
+	KindRecording ContentKind = "recording"
+	KindLive      ContentKind = "live"
+	KindMovie     ContentKind = "movie"
+	KindEpisode   ContentKind = "episode"
 )
 
 // CreateParams is the authorization snapshot captured by an authenticated
@@ -378,7 +379,7 @@ func (s *Store) uniqueTokenLocked(exclude string) (string, error) {
 
 func validParams(params CreateParams) bool {
 	return params.SessionID != "" &&
-		(params.Kind == KindLive || params.Kind == KindMovie || params.Kind == KindEpisode) &&
+		(params.Kind == KindLive || params.Kind == KindMovie || params.Kind == KindEpisode || params.Kind == KindRecording) &&
 		params.ContentID != "" &&
 		params.StreamID != "" &&
 		params.Extension != ""

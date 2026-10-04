@@ -82,6 +82,10 @@ stack: it needs a local source build context.
 Confirm the container is healthy, open the configured host address/port, sign in
 with the XC viewer credentials, and verify **Menu → About**.
 
+## Optional DVR connection (development source)
+
+The DVR-capable source can use a per-account API key file mounted through Compose, so viewers do not have to paste keys at login. See [DVR setup](dvr.md#configure-keys-through-compose). You can instead configure one Admin key with `NOW_DVR_MASTER_API_KEY`; master-key mode independently checks each viewer’s DVR permissions and channel lineup. See the documented account-flag limitation in the DVR setup guide.
+
 ## Local and LAN access
 
 The default is host-loopback only at `127.0.0.1:9192`. Leave that binding in place

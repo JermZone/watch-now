@@ -1,0 +1,12 @@
+# Optional DVR key configuration for a source build or a future DVR-capable image.
+# Each username must map to that SAME Dispatcharr account's personal API key.
+services:
+  watch-now:
+    environment:
+      NOW_DVR_API_KEYS_FILE: /run/secrets/watch_now_dvr_keys
+    secrets:
+      - watch_now_dvr_keys
+
+secrets:
+  watch_now_dvr_keys:
+    file: ${NOW_DVR_KEYS_HOST_FILE:-./secrets/dvr-api-keys.json}

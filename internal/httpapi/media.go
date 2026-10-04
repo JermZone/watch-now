@@ -273,7 +273,9 @@ func (s *Server) createVLCHandoff(
 		return
 	}
 	kind := vlcstore.KindMovie
-	if spec.kind == dispatcharr.MediaKindLive {
+	if spec.kind == dispatcharr.MediaKindRecording {
+		kind = vlcstore.KindRecording
+	} else if spec.kind == dispatcharr.MediaKindLive {
 		kind = vlcstore.KindLive
 	} else if spec.kind == dispatcharr.MediaKindSeries {
 		kind = vlcstore.KindEpisode
@@ -338,7 +340,9 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 	}
 	var spec mediaSpec
 	var err error
-	if media.Kind == vlcstore.KindLive {
+	if media.Kind == vlcstore.KindRecording {
+		spec, err = s.recordingMediaSpec(request.Context(), viewerSession, media.ContentID)
+	} else if media.Kind == vlcstore.KindLive {
 		spec, err = s.liveMediaSpec(request.Context(), viewerSession, media.ContentID)
 	} else if media.Kind == vlcstore.KindMovie {
 		spec, err = s.movieMediaSpec(request.Context(), viewerSession, media.ContentID)
@@ -347,7 +351,11 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 	}
 	if err != nil {
 		if errors.Is(err, dispatcharr.ErrUnauthorized) {
-			s.revokeViewerState(media.SessionID)
+			if media.Kind == vlcstore.KindRecording {
+				s.revokeDVRVLC(viewerSession)
+			} else {
+				s.revokeViewerState(media.SessionID)
+			}
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 			return
 		}
@@ -517,7 +525,14 @@ func (s *Server) relayMedia(
 	defer cancel()
 	var stream dispatcharr.MediaStream
 	var err error
-	if spec.kind == dispatcharr.MediaKindLive {
+	if spec.kind == dispatcharr.MediaKindRecording {
+		api, ok := s.dispatcharr.(dispatcharr.DVRAPI)
+		if !ok {
+			err = dispatcharr.ErrUnavailable
+		} else {
+			stream, err = api.DVROpen(ctx, s.dvrKey(viewerSession), spec.streamID, rangeHeader)
+		}
+	} else if spec.kind == dispatcharr.MediaKindLive {
 		// Live MPEG-TS has no fixed length or seekable byte range. Ignore a
 		// valid VLC probe range and return the current live stream as HTTP 200.
 		var live dispatcharr.LiveStream
@@ -528,7 +543,16 @@ func (s *Server) relayMedia(
 	}
 	if err != nil {
 		if ctx.Err() == nil {
-			s.writeMediaError(writer, request, viewerSession.ID, err, revokeOnUnauthorized)
+			if spec.kind == dispatcharr.MediaKindRecording {
+				if errors.Is(err, dispatcharr.ErrUnauthorized) {
+					s.revokeDVRVLC(viewerSession)
+				}
+				bound := request.WithContext(context.WithValue(request.Context(), sessionContextKey, viewerSession))
+				bound.SetPathValue("resource", "stream")
+				s.dvrError(writer, bound, err)
+			} else {
+				s.writeMediaError(writer, request, viewerSession.ID, err, revokeOnUnauthorized)
+			}
 		}
 		return
 	}
