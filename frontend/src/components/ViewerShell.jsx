@@ -407,7 +407,7 @@ const ViewerShell = ({ session, onExpired }) => {
                   {livePlaybackError && <div className="alert playback-error" role="alert">{livePlaybackError}</div>}
                   {liveMode === 'search' && liveSearchDetail && selectedAiring && selectedAiring.channel.id === selected.id && <article className="program-card selected-airing"><p className="guide-kicker">Selected airing</p><h3>{selectedAiring.title}</h3>{selectedAiring.subtitle && <p>{selectedAiring.subtitle}</p>}<p>{airingTime(selectedAiring)}</p>{selectedAiring.description && <p>{selectedAiring.description}</p>}<RecordButton program={selectedAiring} onRecord={dvrEnabled ? setRecordProgram : undefined} /></article>}
                   {liveMode !== 'guide' && <ProgramGuide onRecord={dvrEnabled ? (program) => setRecordProgram({ ...program, channel: selected }) : undefined} error={guideState.error} guide={guideState.guide} loading={guideState.loading} now={now} onRetry={() => setGuideRetry((value) => value + 1)} />}
-                  {tvGuideEnabled && liveMode !== 'guide' && <button onClick={() => { setGuideChannelID(selected.id); selectDiscoveryMode('guide'); }} type="button">More schedule</button>}
+                  {tvGuideEnabled && liveMode !== 'guide' && <button onClick={() => { setGuideChannelID(selected.id); selectDiscoveryMode('guide'); }} type="button">View in Guide</button>}
                 </> : <p className="empty-state">{programSearchEnabled && liveMode === 'search' ? 'Search for a channel or show.' : 'Choose a category with available channels.'}</p>}
               </section>
             </div>

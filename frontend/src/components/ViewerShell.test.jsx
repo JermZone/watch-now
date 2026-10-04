@@ -670,7 +670,7 @@ it('places Guide next to Browse/Search and preserves playback and browse selecti
   expect(screen.getByRole('button', { name: 'Guide', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await userEvent.click(screen.getByRole('button', { name: 'Browse', exact: true }));
   expect(screen.getByTestId('live-player')).toBe(player);
-  await userEvent.click(screen.getByRole('button', { name: 'More schedule' }));
+  await userEvent.click(screen.getByRole('button', { name: 'View in Guide' }));
   await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).includes('/api/live/guide?') && String(path).includes('channel_id=41'))).toBe(true));
 });
 

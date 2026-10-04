@@ -4,8 +4,9 @@ Live TV now has **Browse / Search / Guide** navigation. Guide is offered when
 program search is enabled and the XC client supports bounded multi-day XMLTV.
 No feed is fetched merely because the navigation button is visible.
 
-Choose a group, channel or date. **Earlier / Later** moves a three-hour window;
-**Back to now** returns to the current half-hour. Guide supports requests up to
+Choose a group, channel or day. A compact day strip and half-hour time slider
+move a three-hour window; **Now** returns to the current half-hour. Slider
+requests wait until movement pauses, and listings include their dates. Guide supports requests up to
 seven days ahead, but channel listings may end sooner or have gaps. This is a
 request limit, not a promise of seven days of source data. All times use the
 browser's local timezone, shown beside the window. Calendar-date selection uses
@@ -16,7 +17,7 @@ Selecting a program opens its details without playback. Current programs offer
 Watch live; current and future programs can open the existing DVR confirmation
 flow. DVR permission checks still happen on the server. A channel's Watch live
 button always tunes its current broadcast, regardless of the displayed date.
-**More schedule** in Browse/Search opens Guide filtered to that channel.
+**View in Guide** in Browse/Search opens Guide filtered to that channel.
 
 Guide filters do not change Browse/Search selections. Existing browser playback
 stays mounted when switching Live TV discovery modes. Changing viewer sections
@@ -75,7 +76,7 @@ restricted accounts, desktop/mobile guide navigation and exact later-airing
 recording on an expendable program. No installation is changed by this source work.
 
 The [draft specification](expanded-tv-guide-spec.md) includes additional proposed
-work. This first implementation uses the shared XMLTV index for More schedule
+work. This first implementation uses the shared XMLTV index for View in Guide
 rather than adding a second per-channel XC schedule transport. A day-long agenda,
 per-airing Load more, and broader Search remain follow-ups. The seven-day target
 may need a shorter operational range on large feeds; do not increase resource

@@ -28,7 +28,7 @@ it('appends channel pages using the snapshot and resets on date navigation', asy
  expect(await screen.findByRole('button', { name: /Program b,/ })).toBeInTheDocument();
  expect(screen.getByRole('button', { name: /Program a,/ })).toBeInTheDocument();
  expect(getTVGuide.mock.calls[1][0]).toMatchObject({ page: 2, snapshot: 's1' });
- await userEvent.click(screen.getByRole('button', { name: 'Later' }));
+ await userEvent.click(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button')[1]);
  await screen.findByRole('button', { name: /Program c,/ });
  expect(screen.queryByRole('button', { name: /Program a,/ })).not.toBeInTheDocument();
 });
@@ -71,7 +71,7 @@ it('supports keyboard movement between airings and reports expired sessions', as
  await waitFor(() => expect(p.onExpired).toHaveBeenCalled());
 });
 
-it('clears a retained group when More schedule selects a channel outside it', async () => {
+it('clears a retained group when View in Guide selects a channel outside it', async () => {
  getTVGuide.mockResolvedValue(page());
  const p = { ...props(), categories: [{ id: '2', name: 'News' }, { id: '3', name: 'Sports' }], channels: [{ ...channel, category_id: '2' }] };
  const view = render(<TVGuide {...p} />);
@@ -80,4 +80,31 @@ it('clears a retained group when More schedule selects a channel outside it', as
  view.rerender(<TVGuide {...p} channelID="41" />);
  await waitFor(() => expect(screen.getByLabelText('Guide group')).toHaveValue(''));
  await waitFor(() => expect(getTVGuide.mock.calls.at(-1)[0]).toMatchObject({ channelID: '41', categoryID: '' }));
+});
+
+it('debounces time scrubbing, keeps a three-hour window, and returns to Now', async () => {
+ getTVGuide.mockResolvedValue(page());
+ render(<TVGuide {...props()} />);
+ await screen.findByRole('button', { name: /Program a,/ });
+ const days = screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button');
+ await userEvent.click(days[1]);
+ await waitFor(() => expect(getTVGuide).toHaveBeenCalledTimes(2));
+ const slider = screen.getByRole('slider', { name: 'Guide start time' });
+ const target = Number(slider.min) + 12 * 3600000;
+ fireEvent.change(slider, { target: { value: String(target - 1800000) } });
+ fireEvent.change(slider, { target: { value: String(target) } });
+ expect(getTVGuide).toHaveBeenCalledTimes(2);
+ await waitFor(() => expect(getTVGuide).toHaveBeenCalledTimes(3));
+ const request = getTVGuide.mock.calls.at(-1)[0];
+ expect(Date.parse(request.start)).toBe(target);
+ expect(Date.parse(request.end) - Date.parse(request.start)).toBe(3 * 3600000);
+ expect(slider).toHaveAttribute('aria-valuetext', expect.stringContaining(new Date(target).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })));
+ await userEvent.click(screen.getByRole('button', { name: 'Now', exact: true }));
+ await waitFor(() => expect(Date.parse(getTVGuide.mock.calls.at(-1)[0].start)).toBe(Math.floor(Date.now() / 1800000) * 1800000));
+ await userEvent.click(days[days.length - 1]);
+ fireEvent.change(slider, { target: { value: slider.max } });
+ await waitFor(() => expect(Date.parse(getTVGuide.mock.calls.at(-1)[0].start)).toBe(Number(slider.max)));
+ expect(Date.parse(getTVGuide.mock.calls.at(-1)[0].end)).toBeLessThanOrEqual(Date.now() + 7 * 86400000);
+ expect(screen.queryByRole('button', { name: 'Earlier' })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Later' })).not.toBeInTheDocument();
 });
