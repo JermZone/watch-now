@@ -164,9 +164,8 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
       <label>Guide channel<select value={channelID} onChange={(e) => onChannelChange(e.target.value)}><option value="">All channels</option>{channels.filter((c) => !categoryID || c.category_id === categoryID).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       {!isMobile && <label>Guide layout<select value={layout} onChange={(e) => setLayout(e.target.value)}><option value="grid">Grid</option><option value="agenda">Agenda</option></select></label>}
     </div>
-    <div className="tv-guide-days" role="group" aria-label="Guide day">{days.map((day) => <button key={day} type="button" aria-pressed={localDate(day) === localDate(sliderStart)} onClick={() => changeDay(day)}>{localDate(day) === today ? 'Today' : dateLabel(day)}</button>)}</div>
+    <div className="tv-guide-days" role="group" aria-label="Guide day"><button onClick={resetNow} type="button">Now</button>{days.map((day) => <button key={day} type="button" aria-pressed={localDate(day) === localDate(sliderStart)} onClick={() => changeDay(day)}>{localDate(day) === today ? 'Today' : dateLabel(day)}</button>)}</div>
     <div className="tv-guide-timeline">
-      <button onClick={resetNow} type="button">Now</button>
       <label className="tv-guide-slider">Guide time
         <span>{dateLabel(sliderStart)} · {timeLabel(sliderStart)} – {localDate(sliderStart) !== localDate(sliderStart + 3 * HOUR) ? `${dateLabel(sliderStart + 3 * HOUR)} · ` : ''}{timeLabel(sliderStart + 3 * HOUR)}</span>
         <input type="range" min={sliderMin} max={sliderMax} step={HOUR / 2} value={Math.max(sliderMin, Math.min(sliderStart, sliderMax))} aria-label="Guide start time" aria-valuetext={`${dateLabel(sliderStart)}, ${timeLabel(sliderStart)}`} onChange={(event) => setSliderStart(Number(event.target.value))} />

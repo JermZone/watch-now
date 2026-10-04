@@ -28,7 +28,7 @@ it('appends channel pages using the snapshot and resets on date navigation', asy
  expect(await screen.findByRole('button', { name: /Program b,/ })).toBeInTheDocument();
  expect(screen.getByRole('button', { name: /Program a,/ })).toBeInTheDocument();
  expect(getTVGuide.mock.calls[1][0]).toMatchObject({ page: 2, snapshot: 's1' });
- await userEvent.click(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button')[1]);
+ await userEvent.click(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]')[1]);
  await screen.findByRole('button', { name: /Program c,/ });
  expect(screen.queryByRole('button', { name: /Program a,/ })).not.toBeInTheDocument();
 });
@@ -86,7 +86,8 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
  getTVGuide.mockResolvedValue(page());
  render(<TVGuide {...props()} />);
  await screen.findByRole('button', { name: /Program a,/ });
- const days = screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button');
+ const days = screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]');
+ expect(screen.getByRole('button', { name: 'Today', exact: true }).previousElementSibling).toBe(screen.getByRole('button', { name: 'Now', exact: true }));
  await userEvent.click(days[1]);
  await waitFor(() => expect(getTVGuide).toHaveBeenCalledTimes(2));
  const slider = screen.getByRole('slider', { name: 'Guide start time' });
