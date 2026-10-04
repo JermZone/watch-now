@@ -7,6 +7,7 @@ services:
       - "${NOW_TEST_HOST_BIND:-127.0.0.1}:${NOW_TEST_HOST_PORT:-9194}:8080"
     environment:
       DISPATCHARR_URL: ${DISPATCHARR_URL:?Set DISPATCHARR_URL to an address reachable from this container}
+      NOW_DVR_MASTER_API_KEY: ${NOW_DVR_MASTER_API_KEY:-}
       NOW_COOKIE_SECURE: ${NOW_COOKIE_SECURE:-auto}
       NOW_TRUST_PROXY_HEADERS: ${NOW_TRUST_PROXY_HEADERS:-false}
     read_only: true

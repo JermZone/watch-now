@@ -1,3 +1,4 @@
+import { RecordButton } from './DVR';
 import LoadingIndicator from './LoadingIndicator';
 const timeFormatter = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' });
 
@@ -14,7 +15,7 @@ const ProgramTime = ({ program }) => (
   </p>
 );
 
-const ProgramGuide = ({ error, guide, loading, now, onRetry }) => {
+const ProgramGuide = ({ error, guide, loading, now, onRecord, onRetry }) => {
   if (loading) {
     return <div className="guide-status" role="status"><LoadingIndicator />Loading program guide…</div>;
   }
@@ -60,6 +61,7 @@ const ProgramGuide = ({ error, guide, loading, now, onRetry }) => {
             </div>
           )}
           {current.description && <p className="program-description">{current.description}</p>}
+          <RecordButton program={current} onRecord={onRecord} />
         </article>
       ) : (
         <p className="between-programs">No program is currently listed.</p>
@@ -70,6 +72,7 @@ const ProgramGuide = ({ error, guide, loading, now, onRetry }) => {
           <p className="guide-kicker">Up next</p>
           <h3>{guide.upcoming.title || 'Untitled program'}</h3>
           <ProgramTime program={guide.upcoming} />
+          <RecordButton program={guide.upcoming} onRecord={onRecord} />
         </article>
       )}
     </div>

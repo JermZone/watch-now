@@ -109,15 +109,15 @@ describe('ViewerShell header menu', () => {
 
     await user.click(screen.getByRole('button', { name: /Open menu, current section/ }));
     const appearance = screen.getByRole('group', { name: 'Appearance' });
-    expect(within(appearance).getByRole('button', { name: 'Blue' })).toHaveAttribute('aria-pressed', 'true');
-    await user.click(within(appearance).getByRole('button', { name: 'Green' }));
+    expect(within(appearance).getByRole('combobox', { name: 'Color' })).toHaveValue('blue');
+    await user.selectOptions(within(appearance).getByRole('combobox', { name: 'Color' }), 'green');
     expect(document.documentElement.dataset.theme).toBe('green');
     expect(window.localStorage.getItem('dispatcharr-now-appearance')).toBe('green');
-    expect(within(appearance).getByRole('button', { name: 'Green' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(appearance).getByRole('combobox', { name: 'Color' })).toHaveValue('green');
     cleanup();
     renderViewer();
     await user.click(screen.getByRole('button', { name: /Open menu, current section/ }));
-    expect(within(screen.getByRole('group', { name: 'Appearance' })).getByRole('button', { name: 'Green' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(screen.getByRole('group', { name: 'Appearance' })).getByRole('combobox', { name: 'Color' })).toHaveValue('green');
   });
 
   it('shows the built version and source in About and returns focus to the menu', async () => {

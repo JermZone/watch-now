@@ -32,7 +32,7 @@ func TestProgramSearchRealXCIsolationRevocationAndCaching(t *testing.T) {
 			if username == "restricted" {
 				name, key = "Sports", "8"
 			}
-			fmt.Fprintf(w, `<tv><channel id="%s"><display-name>%s</display-name></channel><programme channel="%s" start="%s" stop="%s"><title>Shared Search</title><desc>management-only</desc></programme></tv>`, key, name, key, now.Add(-time.Hour).Format("20060102150405 -0700"), now.Add(time.Hour).Format("20060102150405 -0700"))
+			fmt.Fprintf(w, `<tv><channel id="%s"><display-name>%s</display-name></channel><programme channel="%s" start="%s" stop="%s"><title>Shared Search</title><desc>News from the coast</desc><private>management-only</private></programme></tv>`, key, name, key, now.Add(-time.Hour).Format("20060102150405 -0700"), now.Add(time.Hour).Format("20060102150405 -0700"))
 			return
 		}
 		if r.URL.Path != "/player_api.php" {
@@ -228,5 +228,21 @@ func TestLogoutDuringGuideFillCannotRestoreViewerData(t *testing.T) {
 	}
 	if response := authenticatedRequest(t, handler, cookie, "GET", "/api/live/programs/search?search=news", ""); response.Code != 401 {
 		t.Fatal("revoked session searched cached guide")
+	}
+}
+
+func TestProgramMatchPrefersTitleThenSubtitleThenDescription(t *testing.T) {
+	for _, tc := range []struct {
+		p    dispatcharr.GuideProgram
+		want string
+	}{
+		{dispatcharr.GuideProgram{Title: "Football Tonight", Subtitle: "Football", Description: "Football"}, "title"},
+		{dispatcharr.GuideProgram{Title: "Sports", Subtitle: "Football final", Description: "Football"}, "subtitle"},
+		{dispatcharr.GuideProgram{Title: "Sports", Description: "Football playoffs"}, "description"},
+		{dispatcharr.GuideProgram{Title: "News"}, ""},
+	} {
+		if got := programMatchField(tc.p, "football"); got != tc.want {
+			t.Fatalf("match=%s want=%s", got, tc.want)
+		}
 	}
 }

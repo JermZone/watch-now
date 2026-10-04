@@ -24,6 +24,8 @@ const (
 )
 
 type Config struct {
+	DVRAPIKeys            map[string]string `json:"-"`
+	DVRMasterAPIKey       string            `json:"-"`
 	ProgramSearchEnabled  bool
 	ListenAddress         string
 	DispatcharrURL        *url.URL
@@ -121,6 +123,17 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("login rate limits must be positive")
 	}
 
+	cfg.DVRAPIKeys, err = loadDVRKeys(strings.TrimSpace(os.Getenv("NOW_DVR_API_KEYS_FILE")))
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.DVRMasterAPIKey, err = loadDVRMasterKey()
+	if err != nil {
+		return Config{}, err
+	}
+	if cfg.DVRMasterAPIKey != "" && strings.TrimSpace(os.Getenv("NOW_DVR_API_KEYS_FILE")) != "" {
+		return Config{}, fmt.Errorf("configure either a DVR master key or per-user keys, not both")
+	}
 	return cfg, nil
 }
 

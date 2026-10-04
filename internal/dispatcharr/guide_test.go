@@ -138,3 +138,20 @@ func TestGuideHTTPBudgetRedirectAndCredentialSafety(t *testing.T) {
 		})
 	}
 }
+
+func TestGuideDescriptionAndSubtitleAreBounded(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	raw := strings.Replace(guideXML(now, 1), "</title>", "</title><sub-title>  Playoff   final </sub-title>", 1)
+	raw = strings.Replace(raw, strings.Repeat("x", 512), strings.Repeat("é", 2048), 1)
+	index, err := parseGuide(context.Background(), strings.NewReader(raw), []Channel{{ID: "41", Name: "News", epgID: "7"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := index.Programs[0]
+	if p.Subtitle != "Playoff final" || len([]rune(p.Description)) != 1024 {
+		t.Fatal("metadata normalization or bounds failed")
+	}
+	if index.Bytes < int64(len(p.Description)) {
+		t.Fatal("description missing from memory accounting")
+	}
+}

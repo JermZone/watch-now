@@ -22,6 +22,7 @@ var ErrGuideMapping = errors.New("program guide channel mapping is unsupported")
 
 type GuideProgram struct {
 	ChannelID, ChannelKey, ChannelName, Title string
+	Subtitle, Description                     string
 	Start, End                                time.Time
 }
 type GuideIndex struct {
@@ -164,10 +165,12 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 					return GuideIndex{}, ErrGuideLimit
 				}
 				var raw struct {
-					Channel string   `xml:"channel,attr"`
-					Start   string   `xml:"start,attr"`
-					End     string   `xml:"stop,attr"`
-					Titles  []string `xml:"title"`
+					Channel      string   `xml:"channel,attr"`
+					Start        string   `xml:"start,attr"`
+					End          string   `xml:"stop,attr"`
+					Titles       []string `xml:"title"`
+					Subtitles    []string `xml:"sub-title"`
+					Descriptions []string `xml:"desc"`
 				}
 				if decoder.DecodeElement(&raw, &node) != nil {
 					return GuideIndex{}, ErrInvalidResponse
@@ -194,13 +197,13 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 				if title == "" || !utf8.ValidString(title) || utf8.RuneCountInString(title) > 160 {
 					continue
 				}
-				program := GuideProgram{ChannelID: channel.ID, ChannelKey: raw.Channel, ChannelName: channel.Name, Title: title, Start: start.UTC(), End: end.UTC()}
-				stringBytes += int64(len(program.ChannelID) + len(program.ChannelKey) + len(program.ChannelName) + len(title))
+				program := GuideProgram{ChannelID: channel.ID, ChannelKey: raw.Channel, ChannelName: channel.Name, Title: title, Subtitle: firstGuideText(raw.Subtitles, 160), Description: firstGuideText(raw.Descriptions, 1024), Start: start.UTC(), End: end.UTC()}
+				stringBytes += int64(len(program.ChannelID) + len(program.ChannelKey) + len(program.ChannelName) + len(title) + len(program.Subtitle) + len(program.Description))
 				if len(index.Programs) >= maxGuidePrograms {
 					return GuideIndex{}, ErrGuideLimit
 				}
 				index.Programs = append(index.Programs, program)
-				index.Bytes = stringBytes + int64(cap(index.Programs))*160
+				index.Bytes = stringBytes + int64(cap(index.Programs))*192
 				if index.Bytes > MaxGuideIndexBytes {
 					return GuideIndex{}, ErrGuideLimit
 				}
@@ -252,3 +255,19 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 	return index, nil
 }
 func normalizedGuideText(text string) string { return strings.Join(strings.Fields(text), " ") }
+
+// Copy bounded, normalized text so a long source field cannot retain its backing buffer.
+func firstGuideText(values []string, limit int) string {
+	for _, value := range values {
+		value = normalizedGuideText(value)
+		if value == "" || !utf8.ValidString(value) {
+			continue
+		}
+		runes := []rune(value)
+		if len(runes) > limit {
+			runes = runes[:limit]
+		}
+		return string(runes)
+	}
+	return ""
+}

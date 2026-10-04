@@ -15,11 +15,14 @@ import (
 
 type guideFailure struct{ err error }
 type programSearchResult struct {
-	ID      string              `json:"id"`
-	Title   string              `json:"title"`
-	Start   time.Time           `json:"start"`
-	End     time.Time           `json:"end"`
-	Channel dispatcharr.Channel `json:"channel"`
+	ID          string              `json:"id"`
+	Title       string              `json:"title"`
+	Subtitle    string              `json:"subtitle,omitempty"`
+	Description string              `json:"description,omitempty"`
+	MatchField  string              `json:"match_field"`
+	Start       time.Time           `json:"start"`
+	End         time.Time           `json:"end"`
+	Channel     dispatcharr.Channel `json:"channel"`
 }
 
 func (s *Server) programSearchEnabled() bool {
@@ -27,7 +30,7 @@ func (s *Server) programSearchEnabled() bool {
 	return s.cfg.ProgramSearchEnabled && ok
 }
 func (s *Server) handleSearchCapabilities(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"program_search": s.programSearchEnabled()})
+	writeJSON(w, http.StatusOK, map[string]bool{"program_search": s.programSearchEnabled(), "dvr": s.dvrEnabled()})
 }
 func (s *Server) handleProgramSearch(w http.ResponseWriter, r *http.Request) {
 	if !s.programSearchEnabled() {
@@ -39,7 +42,7 @@ func (s *Server) handleProgramSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if q.search == "" {
-		writeError(w, http.StatusBadRequest, "invalid_search", "Enter a show title")
+		writeError(w, http.StatusBadRequest, "invalid_search", "Enter a show title, episode, or description")
 		return
 	}
 	status := r.URL.Query().Get("status")
@@ -81,24 +84,25 @@ func (s *Server) handleProgramSearch(w http.ResponseWriter, r *http.Request) {
 	results := []programSearchResult{}
 	total := 0
 	start := (q.page - 1) * q.pageSize
-	for _, p := range index.Programs {
-		ch, allowed := current[p.ChannelID]
-		if !allowed || ch.EPGChannelID() != p.ChannelKey || ch.Name != p.ChannelName || q.categoryID != "" && ch.CategoryID != q.categoryID {
-			continue
+	for _, field := range []string{"title", "subtitle", "description"} {
+		for _, p := range index.Programs {
+			ch, allowed := current[p.ChannelID]
+			if !allowed || ch.EPGChannelID() != p.ChannelKey || ch.Name != p.ChannelName || q.categoryID != "" && ch.CategoryID != q.categoryID {
+				continue
+			}
+			if !p.End.After(now) || !p.Start.Before(horizon) || status == "now" && p.Start.After(now) || status == "upcoming" && !p.Start.After(now) {
+				continue
+			}
+			if programMatchField(p, query) != field {
+				continue
+			}
+			total++
+			if total <= start || len(results) >= q.pageSize {
+				continue
+			}
+			id := programResultID(p)
+			results = append(results, programSearchResult{ID: id, Title: p.Title, Subtitle: p.Subtitle, Description: p.Description, MatchField: field, Start: p.Start, End: p.End, Channel: ch})
 		}
-		if !p.End.After(now) || !p.Start.Before(horizon) || status == "now" && p.Start.After(now) || status == "upcoming" && !p.Start.After(now) {
-			continue
-		}
-		if !strings.Contains(strings.ToLower(p.Title), query) {
-			continue
-		}
-		total++
-		if total <= start || len(results) >= q.pageSize {
-			continue
-		}
-		sum := sha256.Sum256([]byte(ch.ID + "\x00" + p.Start.UTC().Format(time.RFC3339) + "\x00" + p.End.UTC().Format(time.RFC3339) + "\x00" + p.Title))
-		id := hex.EncodeToString(sum[:16])
-		results = append(results, programSearchResult{ID: id, Title: p.Title, Start: p.Start, End: p.End, Channel: ch})
 	}
 	writeJSON(w, http.StatusOK, catalogPage[programSearchResult]{Items: results, Total: total, Page: q.page, PageSize: q.pageSize})
 }
@@ -139,4 +143,22 @@ func (s *Server) guideForViewer(ctx context.Context, viewer session.Session, cha
 		return dispatcharr.GuideIndex{}, failed.err
 	}
 	return value.(dispatcharr.GuideIndex), nil
+}
+
+func programMatchField(p dispatcharr.GuideProgram, query string) string {
+	if strings.Contains(strings.ToLower(p.Title), query) {
+		return "title"
+	}
+	if strings.Contains(strings.ToLower(p.Subtitle), query) {
+		return "subtitle"
+	}
+	if strings.Contains(strings.ToLower(p.Description), query) {
+		return "description"
+	}
+	return ""
+}
+
+func programResultID(p dispatcharr.GuideProgram) string {
+	sum := sha256.Sum256([]byte(p.ChannelID + "\x00" + p.Start.UTC().Format(time.RFC3339) + "\x00" + p.End.UTC().Format(time.RFC3339) + "\x00" + p.Title))
+	return hex.EncodeToString(sum[:16])
 }
