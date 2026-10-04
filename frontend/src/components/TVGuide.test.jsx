@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TVGuide, { guideLanes } from './TVGuide';
 import { APIError, getTVGuide } from '../api';
@@ -67,7 +67,7 @@ it('supports keyboard movement between airings and reports expired sessions', as
  fireEvent.keyDown(first, { key: 'ArrowRight' });
  expect(screen.getByRole('button', { name: /Program b,/ })).toHaveFocus();
  getTVGuide.mockRejectedValueOnce(new APIError('Expired', { status: 401 }));
- await userEvent.click(screen.getByRole('button', { name: 'Refresh guide' }));
+ await userEvent.click(screen.getByRole('button', { name: 'Now', exact: true }));
  await waitFor(() => expect(p.onExpired).toHaveBeenCalled());
 });
 
@@ -108,3 +108,51 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
  expect(screen.queryByRole('button', { name: 'Earlier' })).not.toBeInTheDocument();
  expect(screen.queryByRole('button', { name: 'Later' })).not.toBeInTheDocument();
 });
+
+it('refreshes stale listings, pauses while hidden, and reloads when Guide reopens', async () => {
+  vi.useFakeTimers();
+  try {
+    getTVGuide.mockImplementation(() => Promise.resolve({ ...page(), fetched_at: new Date().toISOString() }));
+    const p = props();
+    const view = render(<TVGuide {...p} />);
+    await act(async () => {});
+    expect(screen.queryByRole('button', { name: 'Refresh guide' })).not.toBeInTheDocument();
+    expect(getTVGuide).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(300000); });
+    expect(getTVGuide).toHaveBeenCalledTimes(1);
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+    expect(getTVGuide).toHaveBeenCalledTimes(2);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    await act(async () => { await vi.advanceTimersByTimeAsync(301000); });
+    expect(getTVGuide).toHaveBeenCalledTimes(2);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    fireEvent(document, new Event('visibilitychange'));
+    await act(async () => {});
+    expect(getTVGuide).toHaveBeenCalledTimes(3);
+    view.rerender(<TVGuide {...p} active={false} />);
+    await act(async () => { await vi.advanceTimersByTimeAsync(301000); });
+    expect(getTVGuide).toHaveBeenCalledTimes(3);
+    view.rerender(<TVGuide {...p} />);
+    await act(async () => {});
+    expect(getTVGuide).toHaveBeenCalledTimes(4);
+  } finally { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); }
+ });
+
+it('keeps Retry available after an automatic reload fails', async () => {
+  vi.useFakeTimers();
+  try {
+    getTVGuide.mockResolvedValueOnce({ ...page(), fetched_at: new Date().toISOString() })
+      .mockRejectedValueOnce(new Error('Guide temporarily unavailable'))
+      .mockResolvedValue(page());
+    render(<TVGuide {...props()} />);
+    await act(async () => {});
+    await act(async () => { await vi.advanceTimersByTimeAsync(301000); });
+    expect(screen.getByRole('alert')).toHaveTextContent('Guide temporarily unavailable');
+    await act(async () => { await vi.advanceTimersByTimeAsync(301000); });
+    expect(getTVGuide).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Retry guide' }));
+    await act(async () => {});
+    expect(getTVGuide).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  } finally { cleanup(); vi.useRealTimers(); }
+ });

@@ -6,7 +6,10 @@ No feed is fetched merely because the navigation button is visible.
 
 Choose a group, channel or day. A compact day strip and half-hour time slider
 move a three-hour window; **Now** returns to the current half-hour. Slider
-requests wait until movement pauses, and listings include their dates. Guide supports requests up to
+requests wait until movement pauses, and listings include their dates. Listings
+reload on returning to Guide and after the five-minute cache lifetime while
+visible. Refresh waits while an airing dialog or slider interaction is active;
+failed loads offer Retry instead of a permanent refresh button. Guide supports requests up to
 seven days ahead, but channel listings may end sooner or have gaps. This is a
 request limit, not a promise of seven days of source data. All times use the
 browser's local timezone, shown beside the window. Calendar-date selection uses

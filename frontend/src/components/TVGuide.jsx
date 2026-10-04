@@ -81,7 +81,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     const version = ++generation.current;
     setState({ ...empty, loading: true });
     getTVGuide({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), categoryID, channelID, signal: controller.signal }).then((data) => {
-      if (!controller.signal.aborted && version === generation.current) setState({ ...data, loading: false, error: '' });
+      if (!controller.signal.aborted && version === generation.current) setState({ ...data, receivedAt: Date.now(), loading: false, error: '' });
     }).catch((error) => {
       if (controller.signal.aborted || version !== generation.current) return;
       if (error instanceof APIError && error.status === 401) onExpired('Your viewer session expired. Sign in again.');
@@ -89,6 +89,22 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     });
     return () => { controller.abort(); generation.current += 1; };
   }, [active, start, end, categoryID, channelID, retry, onExpired]);
+
+  useEffect(() => {
+    if (!active || state.loading || state.error || !state.receivedAt || details || sliderStart !== start) return undefined;
+    const fetched = Date.parse(state.fetched_at);
+    const expiresAt = (Number.isFinite(fetched) ? fetched : state.receivedAt) + 5 * 60 * 1000 + 1000;
+    let requested = false;
+    const refreshIfStale = () => {
+      if (requested || document.visibilityState === 'hidden' || Date.now() < expiresAt) return;
+      requested = true;
+      setRetry((value) => value + 1);
+    };
+    // Avoid tight retries if an upstream/cache timestamp is unexpectedly old.
+    const timer = setTimeout(refreshIfStale, Math.max(30000, expiresAt - Date.now()));
+    document.addEventListener('visibilitychange', refreshIfStale);
+    return () => { clearTimeout(timer); document.removeEventListener('visibilitychange', refreshIfStale); };
+  }, [active, state.loading, state.error, state.fetched_at, state.receivedAt, details, sliderStart, start]);
 
   useEffect(() => {
     if (!state.loading && pageFocusPending.current) {
@@ -107,7 +123,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
       const data = await getTVGuide({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), categoryID, channelID, page: state.page + 1, snapshot: state.snapshot, signal: controller.signal });
       if (!controller.signal.aborted && version === generation.current) {
         pageFocusPending.current = true;
-        setState((value) => ({ ...data, items: replace || [...value.items, ...data.items].reduce((n, row) => n + row.programs.length, 0) > 500 ? data.items : [...value.items, ...data.items], loading: false, error: '' }));
+        setState((value) => ({ ...data, receivedAt: Date.now(), items: replace || [...value.items, ...data.items].reduce((n, row) => n + row.programs.length, 0) > 500 ? data.items : [...value.items, ...data.items], loading: false, error: '' }));
 
       }
     } catch (error) {
@@ -156,7 +172,6 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
         <input type="range" min={sliderMin} max={sliderMax} step={HOUR / 2} value={Math.max(sliderMin, Math.min(sliderStart, sliderMax))} aria-label="Guide start time" aria-valuetext={`${dateLabel(sliderStart)}, ${timeLabel(sliderStart)}`} onChange={(event) => setSliderStart(Number(event.target.value))} />
         <span className="tv-guide-slider-ends"><span>{localDate(sliderMin) === today ? 'Now' : timeLabel(sliderMin)}</span><span>{timeLabel(sliderMax)}</span></span>
       </label>
-      <button disabled={state.loading} onClick={() => setRetry((value) => value + 1)} type="button">Refresh guide</button>
     </div>
     <p className="section-hint">Showing {dateLabel(start)} · {timeLabel(start)} – {localDate(start) !== localDate(end) ? `${dateLabel(end)} · ` : ''}{timeLabel(end)} · {timezone}. Three-hour view; listings vary by channel.</p>
     {state.error && <div role="alert" className="alert"><p>{state.error}</p><button onClick={() => setRetry((value) => value + 1)} type="button">Retry guide</button><button onClick={resetNow} type="button">Show today</button></div>}
