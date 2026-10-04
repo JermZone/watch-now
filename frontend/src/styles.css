@@ -845,7 +845,7 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .selected-mobile-channel { flex: 1 0 100%; min-width: 0; overflow-wrap: anywhere; color: var(--theme--e4f2ed); font-weight: 700; font-size: 1rem; }
 
 .viewer-navigation.is-discovery { grid-template-columns: minmax(0, 1fr); gap: 0.45rem; }
-.discovery-mode-nav { width: min(100%, 420px); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.3rem; border-bottom: 1px solid var(--theme-rgba-153-207-187-0-16); }
+.discovery-mode-nav { width: min(100%, 420px); display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0.3rem; border-bottom: 1px solid var(--theme-rgba-153-207-187-0-16); }
 .discovery-mode-nav button { min-height: 44px; border: 0; border-bottom: 2px solid transparent; padding: 0 0.7rem; color: var(--theme--9db5ac); background: transparent; font-weight: 700; }
 .discovery-mode-nav button.is-active { border-bottom-color: var(--theme--69e8b8); color: var(--theme--9fe2c6); }
 @media (max-width: 600px), (max-height: 500px) and (max-width: 950px) and (orientation: landscape) and (hover: none) and (pointer: coarse) { .discovery-mode-nav { width: 100%; } }
@@ -868,3 +868,32 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .match-hint { font-style: italic; }
 .selected-airing { margin-block: 1rem; }
 .record-button { flex-shrink: 0; }
+
+/* A bounded schedule viewport; narrow screens use a chronological agenda. */
+.tv-guide { margin: 1rem 0; min-width: 0; }
+.tv-guide[hidden] { display: none; }
+.tv-guide-controls, .tv-guide-navigation { display: flex; flex-wrap: wrap; gap: .65rem; margin-bottom: .8rem; }
+.tv-guide-controls label { display: flex; flex-direction: column; gap: .3rem; min-width: 0; flex: 1 1 150px; font-size: .85rem; }
+.tv-guide-controls select, .tv-guide-controls input { width: 100%; min-width: 0; padding: .65rem; border-radius: .5rem; }
+.tv-guide-grid { overflow: auto; max-height: 65vh; border: 1px solid var(--theme-rgba-153-207-187-0-24); border-radius: .7rem; margin-bottom: 1rem; }
+.tv-guide-grid .tv-guide-heading, .tv-guide-grid .tv-guide-row { display: grid; grid-template-columns: 180px minmax(500px, 1fr); min-width: 680px; }
+.tv-guide-heading { position: sticky; top: 0; z-index: 3; background: var(--theme--081713); padding: .7rem 0; font-size: .8rem; }
+.tv-guide-heading > span { padding-left: .65rem; }
+.tv-guide-heading > div { display: grid; grid-template-columns: repeat(6, 1fr); }
+.tv-guide-row { border-bottom: 1px solid var(--theme-rgba-153-207-187-0-24); }
+.tv-guide-channel { padding: .65rem; display: flex; flex-direction: column; gap: .4rem; align-items: flex-start; overflow-wrap: anywhere; }
+.tv-guide-grid .tv-guide-channel { position: sticky; left: 0; z-index: 2; background: var(--theme--081713); }
+.tv-guide-channel button { font-size: .8rem; }
+.tv-guide-airings { position: relative; min-width: 0; }
+.tv-guide-program { text-align: left; display: flex; flex-direction: column; gap: .2rem; padding: .55rem; overflow: hidden; min-width: 0; border-radius: .45rem; }
+.tv-guide-program strong, .tv-guide-program span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-guide-program span { font-size: .75rem; }
+.tv-guide-grid .tv-guide-program { position: absolute; height: 84px; border: 2px solid var(--theme-rgba-153-207-187-0-24); }
+.tv-guide-grid .tv-guide-program:focus-visible { z-index: 4; outline-offset: -3px; }
+.tv-guide-now { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef6262; pointer-events: none; z-index: 1; }
+.tv-guide-agenda .tv-guide-row { padding: .5rem 0 1rem; }
+.tv-guide-agenda .tv-guide-airings { display: grid; gap: .5rem; }
+.tv-guide-agenda .tv-guide-program { width: 100%; min-height: 70px; }
+@media (max-width: 600px) { .tv-guide-controls label { flex-basis: 45%; } .tv-guide-navigation button { flex: 1 1 40%; } }
+
+.catalog-toolbar[hidden], .detail-panel[hidden] { display: none; }

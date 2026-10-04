@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -26,6 +27,8 @@ type GuideProgram struct {
 	Start, End                                time.Time
 }
 type GuideIndex struct {
+	FetchedAt       time.Time
+	WindowEnd       time.Time
 	Programs        []GuideProgram
 	Bytes           int64
 	TransferBytes   int64
@@ -38,12 +41,25 @@ type GuideAPI interface {
 	LiveGuide(context.Context, Credentials, []Channel) (GuideIndex, error)
 }
 
+// ExtendedGuideAPI is optional; basic one-day search remains compatible.
+type ExtendedGuideAPI interface {
+	LiveGuideDays(context.Context, Credentials, []Channel, int) (GuideIndex, error)
+}
+
 func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channels []Channel) (GuideIndex, error) {
+	return c.LiveGuideDays(ctx, credentials, channels, 1)
+}
+
+func (c *Client) LiveGuideDays(ctx context.Context, credentials Credentials, channels []Channel, days int) (GuideIndex, error) {
+	if days != 1 && days != 3 && days != 7 {
+		return GuideIndex{}, ErrInvalidResponse
+	}
+
 	requestURL := *c.baseURL
 	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/xmltv.php"
 	requestURL.RawPath = ""
 	query := credentialValues(credentials)
-	query.Set("days", "1")
+	query.Set("days", strconv.Itoa(days))
 	query.Set("prev_days", "0")
 	query.Set("tvg_id_source", "channel_number")
 	requestURL.RawQuery = query.Encode()
@@ -70,7 +86,7 @@ func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channel
 		return GuideIndex{}, ErrGuideLimit
 	}
 	reader := &io.LimitedReader{R: response.Body, N: limit + 1}
-	index, err := parseGuide(ctx, reader, channels, time.Now())
+	index, err := parseGuideDays(ctx, reader, channels, time.Now(), days)
 	if reader.N == 0 {
 		return GuideIndex{}, ErrGuideLimit
 	}
@@ -81,6 +97,10 @@ func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channel
 }
 
 func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now time.Time) (GuideIndex, error) {
+	return parseGuideDays(ctx, reader, channels, now, 1)
+}
+
+func parseGuideDays(ctx context.Context, reader io.Reader, channels []Channel, now time.Time, days int) (GuideIndex, error) {
 	allowed := make(map[string]Channel)
 	ambiguous := make(map[string]bool)
 	for _, channel := range channels {
@@ -98,8 +118,8 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 	mapped := make(map[string]Channel)
 	defined := make(map[string]bool)
 	decoder := xml.NewDecoder(reader)
-	index := GuideIndex{Programs: []GuideProgram{}}
-	horizon := now.Add(24 * time.Hour)
+	horizon := now.Add(time.Duration(days) * 24 * time.Hour)
+	index := GuideIndex{Programs: []GuideProgram{}, FetchedAt: now, WindowEnd: horizon}
 	scanned := 0
 	var stringBytes int64
 	rootSeen, rootClosed := false, false

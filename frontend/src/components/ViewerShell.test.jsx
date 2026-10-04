@@ -37,12 +37,13 @@ const installLayoutMedia = (initialMatches) => {
   };
 };
 
-const installViewerAPI = (programSearch = false) => {
+const installViewerAPI = (programSearch = false, guide = false) => {
   const now = Date.now();
   const fetchMock = vi.fn((input) => {
     const path = String(input);
     if (path === '/api/auth/logout') return jsonResponse({});
-    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: programSearch });
+    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: programSearch, guide });
+    if (path.startsWith('/api/live/guide?')) return jsonResponse({ items: [{ channel: { id: '41', name: 'World News' }, programs: [] }], page: 1, has_more: false, snapshot: 's1' });
     if (path.startsWith('/api/live/programs/search?')) return jsonResponse({ items: [{ id: 'search1', title: 'Morning report', start: new Date(now - 60000), end: new Date(now + 60000), channel: { id: '41', name: 'World News', channel_number: '7' } }], total: 1, page: 1, page_size: 20 });
     if (path === '/api/live/categories') {
       return jsonResponse([{ id: '2', name: 'News' }, { id: '3', name: 'Sports' }]);
@@ -654,4 +655,39 @@ describe('Live search and guide lifecycle', () => {
       expect(fetchMock.mock.calls.filter(([path]) => String(path).includes('/1/epg'))).toHaveLength(1);
     } finally { cleanup(); vi.useRealTimers(); }
   });
+});
+
+it('places Guide next to Browse/Search and preserves playback and browse selection', async () => {
+  installLayoutMedia(false);
+  const fetchMock = installViewerAPI(true, true);
+  renderViewer();
+  await screen.findByRole('button', { name: 'Guide', exact: true });
+  await userEvent.click(await screen.findByRole('button', { name: 'Watch Live', exact: true }));
+  const player = await screen.findByTestId('live-player');
+  await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
+  expect(await screen.findByRole('region', { name: 'TV Guide' })).toBeVisible();
+  expect(screen.getByTestId('live-player')).toBe(player);
+  expect(screen.getByRole('button', { name: 'Guide', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await userEvent.click(screen.getByRole('button', { name: 'Browse', exact: true }));
+  expect(screen.getByTestId('live-player')).toBe(player);
+  await userEvent.click(screen.getByRole('button', { name: 'More schedule' }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).includes('/api/live/guide?') && String(path).includes('channel_id=41'))).toBe(true));
+});
+
+it('preserves Search playback entering Guide with an empty Browse group', async () => {
+  installLayoutMedia(false);
+  const fetchMock = installViewerAPI(true, true);
+  const original = fetchMock.getMockImplementation();
+  fetchMock.mockImplementation((input, ...args) => String(input) === '/api/live/categories'
+    ? jsonResponse([{ id: '2', name: 'News' }, { id: 'empty', name: 'Empty group' }])
+    : original(input, ...args));
+  renderViewer();
+  await screen.findByRole('button', { name: 'Guide', exact: true });
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'empty');
+  await userEvent.click(screen.getByRole('button', { name: 'Search', exact: true }));
+  await userEvent.type(screen.getByRole('searchbox'), 'World');
+  await userEvent.click(await screen.findByRole('button', { name: 'Watch Now', exact: true }));
+  const player = await screen.findByTestId('live-player');
+  await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
+  expect(screen.queryByTestId('live-player')).toBe(player);
 });

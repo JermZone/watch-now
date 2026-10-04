@@ -291,12 +291,27 @@ func (s *Server) dvrProgram(ctx context.Context, viewer session.Session, channel
 		}
 	}
 	if s.programSearchEnabled() {
-		index, err := s.guideForViewer(ctx, viewer, channels)
-		if err == nil {
+		now := time.Now()
+		if !start.Before(now.Add(7 * 24 * time.Hour)) {
+			return dispatcharr.GuideProgram{}, false
+		}
+		for _, days := range []int{1, 3, 7} {
+			if !start.Before(now.Add(time.Duration(days) * 24 * time.Hour)) {
+				continue
+			}
+			index, err := s.guideForViewerDays(ctx, viewer, channels, days)
+			if err != nil {
+				return dispatcharr.GuideProgram{}, false
+			}
 			for _, p := range index.Programs {
 				if p.ChannelID == ch.ID && p.ChannelKey == ch.EPGChannelID() && p.ChannelName == ch.Name && p.Start.Equal(start) && p.End.Equal(end) {
 					return p, true
 				}
+			}
+			// Cached horizons are anchored at fetch time. Try a wider window
+			// only when this index could not have retained the requested start.
+			if start.Before(index.WindowEnd) {
+				break
 			}
 		}
 	}
