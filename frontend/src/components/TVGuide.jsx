@@ -167,7 +167,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     <div className="tv-guide-controls">
       <label>Guide group<select value={categoryID} onChange={(e) => { setCategoryID(e.target.value); onChannelChange(''); }}><option value="">All channels</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       <label>Guide channel<select value={channelID} onChange={(e) => onChannelChange(e.target.value)}><option value="">All channels</option>{channels.filter((c) => !categoryID || c.category_id === categoryID).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-      <div className="tv-guide-layout" role="group" aria-label="Guide layout"><button type="button" aria-pressed={!agenda} onClick={() => setLayout('grid')}>Grid</button><button type="button" aria-pressed={agenda} onClick={() => setLayout('agenda')}>Agenda</button></div>
+      <div className="tv-guide-layout" role="group" aria-label="Guide layout"><button type="button" aria-pressed={!agenda} onClick={() => setLayout('grid')}>Grid</button><button type="button" aria-pressed={agenda} onClick={() => setLayout('agenda')}>List</button></div>
     </div>
     <div className="tv-guide-days" role="group" aria-label="Guide day"><button onClick={resetNow} type="button">Now</button>{days.map((day) => <button key={day} type="button" aria-pressed={localDate(day) === localDate(sliderStart)} onClick={() => changeDay(day)}>{localDate(day) === today ? 'Today' : dateLabel(day)}</button>)}</div>
     <div className="tv-guide-timeline" hidden={!agenda}>

@@ -43,7 +43,7 @@ it('rejects a stale snapshot instead of mixing generations', async () => {
 it('shows mobile agenda and future recording without a future Watch action', async () => {
  getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [airing('future', true)] }] });
  const p = props(); render(<TVGuide {...p} isMobile />);
- await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  await userEvent.click(await screen.findByRole('button', { name: /Program future,/ }));
  expect(screen.getByRole('dialog').querySelectorAll('button')).toHaveLength(2);
  expect(screen.getByRole('group', { name: 'Guide layout' })).toBeInTheDocument();
@@ -88,7 +88,7 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
  getTVGuide.mockResolvedValue(page());
  render(<TVGuide {...props()} />);
  await screen.findByRole('button', { name: /Program a,/ });
- await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  const days = screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]');
  expect(screen.getByRole('button', { name: 'Today', exact: true }).previousElementSibling).toBe(screen.getByRole('button', { name: 'Now', exact: true }));
  await userEvent.click(days[1]);
@@ -161,7 +161,7 @@ it('keeps Retry available after an automatic reload fails', async () => {
   } finally { cleanup(); vi.useRealTimers(); }
  });
 
-it('offers mobile grid by default and remembers Agenda without refetching or losing time', async () => {
+it('offers mobile grid by default and remembers List without refetching or losing time', async () => {
  getTVGuide.mockResolvedValue(page());
  const p = props(); const view = render(<TVGuide {...p} isMobile />);
  await screen.findByRole('button', { name: /Program a,/ });
@@ -169,16 +169,16 @@ it('offers mobile grid by default and remembers Agenda without refetching or los
  expect(screen.getByRole('region', { name: /Schedule grid/ })).toBeInTheDocument();
  expect(screen.queryByRole('slider')).not.toBeInTheDocument();
  const calls = getTVGuide.mock.calls.length;
- await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  const selected = screen.getByRole('slider').value;
  expect(getTVGuide).toHaveBeenCalledTimes(calls);
  expect(localStorage.getItem('watch-now-guide-layout')).toBe('agenda');
  await userEvent.click(screen.getByRole('button', { name: 'Grid', exact: true }));
- await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  expect(screen.getByRole('slider').value).toBe(selected);
  view.unmount();
  render(<TVGuide {...p} isMobile />);
- expect(screen.getByRole('button', { name: 'Agenda', exact: true })).toHaveAttribute('aria-pressed', 'true');
+ expect(screen.getByRole('button', { name: 'List', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 it('shows only confirmed dates and clears coverage when the channel changes', async () => {
@@ -192,7 +192,7 @@ it('shows only confirmed dates and clears coverage when the channel changes', as
  expect(screen.getByRole('button', { name: 'Today', exact: true })).toBeInTheDocument();
 });
 
-it('uses shared logos in Grid with an accessible missing-logo fallback and names in Agenda', async () => {
+it('uses shared logos in Grid with an accessible missing-logo fallback and names in List', async () => {
  const logoChannel = { ...channel, has_artwork: true };
  getTVGuide.mockResolvedValue({ ...page(), items: [{ channel: logoChannel, programs: [] }] });
  render(<TVGuide {...props()} isMobile />);
@@ -204,6 +204,6 @@ it('uses shared logos in Grid with an accessible missing-logo fallback and names
  expect(screen.queryByRole('img', { name: 'News logo' })).not.toBeInTheDocument();
  expect(screen.getByText('N')).toBeInTheDocument();
  expect(screen.getByRole('group', { name: '7 News' })).toBeInTheDocument();
- await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  expect(screen.getByText('7 News')).toBeVisible();
 });

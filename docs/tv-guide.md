@@ -19,10 +19,10 @@ request limit, not a promise of seven days of source data. All times use the
 browser's local timezone, shown beside the window. Calendar-date selection uses
 local dates, including daylight-saving changes.
 
-Desktop and phones offer Grid / Agenda, defaulting to Grid and remembering the
+Desktop and phones offer Grid / List, defaulting to Grid and remembering the
 layout locally. Mobile Grid uses compact sticky channel names and horizontal
 scrolling; its Previous/Next hours controls advance the bounded window. Only
-Agenda shows the time slider. Switching layouts retains the time and filters
+List shows the time slider. Switching layouts retains the time and filters
 without another request.
 Selecting a program opens its details without playback. Current programs offer
 Watch live; current and future programs can open the existing DVR confirmation
