@@ -94,3 +94,15 @@ rather than adding a second per-channel XC schedule transport. A day-long agenda
 per-airing Load more, and broader Search remain follow-ups. The seven-day target
 may need a shorter operational range on large feeds; do not increase resource
 budgets without measurements.
+
+## Guide playback and conflicting listings
+
+Watch live opens a dedicated player view with Back to Guide, channel identity,
+current program information when available, and playback controls. Back and Stop
+stop the stream and restore the mounted Guide's filters, time, and grid scroll
+position. Guide auto-refresh pauses while the dedicated player is open.
+
+Grid removes exact duplicate listings and combines overlapping airings into one
+block, keeping one row per channel. Tapping a conflict opens a choice of the
+original listings; their start/end times and recording actions remain unchanged.
+This is a display treatment, not a correction to the provider's EPG data.

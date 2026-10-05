@@ -23,7 +23,7 @@ it('loads only when opened and selects details without autoplay', async () => {
  expect(p.onRecord).toHaveBeenCalledWith(expect.objectContaining({ id: 'a' }));
 });
 it('appends channel pages using the snapshot and resets on date navigation', async () => {
- getTVGuide.mockResolvedValueOnce(page('a', true)).mockResolvedValueOnce(page('b', false, 2)).mockResolvedValue(page('c'));
+ getTVGuide.mockResolvedValueOnce(page('a', true)).mockResolvedValueOnce(page('b', false, 2)).mockResolvedValue({ ...page('c'), items: [{ channel, programs: [airing('c', true)] }] });
  render(<TVGuide {...props()} />);
  await userEvent.click(await screen.findByRole('button', { name: 'Load more channels' }));
  expect(await screen.findByRole('button', { name: /Program b,/ })).toBeInTheDocument();
@@ -56,14 +56,15 @@ it('ignores a late response after changing the selected channel', async () => {
  resolve(page('old'));
  await waitFor(() => expect(screen.queryByRole('button', { name: /Program old,/ })).not.toBeInTheDocument());
 });
-it('packs overlapping programs into separate lanes and clips the viewport', () => {
+it('groups overlapping programs into a single row and clips the viewport', () => {
  const programs = [{ start: new Date(0).toISOString(), end: new Date(200).toISOString() }, { start: new Date(150).toISOString(), end: new Date(300).toISOString() }];
  const result = guideLanes(programs, 100, 250);
- expect(result.map((r) => r.lane)).toEqual([0, 1]);
- expect(result[0].left).toBe(0); expect(result[1].left + result[1].width).toBeCloseTo(100);
+ expect(result).toHaveLength(1);
+ expect(result[0].programs).toHaveLength(2);
+ expect(result[0].lane).toBe(0); expect(result[0].left).toBe(0); expect(result[0].width).toBeCloseTo(100);
 });
 it('supports keyboard movement between airings and reports expired sessions', async () => {
- getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [airing('a'), airing('b')] }] });
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [{ ...airing('a'), end: new Date(Date.now() + 60000).toISOString() }, { ...airing('b'), start: new Date(Date.now() + 60000).toISOString() }] }] });
  const p = props(); render(<TVGuide {...p} />);
  const first = await screen.findByRole('button', { name: /Program a,/ }); first.focus();
  fireEvent.keyDown(first, { key: 'ArrowRight' });
@@ -223,4 +224,17 @@ it('opens channel options from the Grid logo without autoplay and restores focus
  await userEvent.click(screen.getByRole('button', { name: 'Watch live', exact: true }));
  expect(p.onWatch).toHaveBeenCalledWith(channel);
  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('removes exact duplicates but keeps conflicting listings selectable with original times', async () => {
+ const first = airing('a'); const second = airing('b');
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [first, { ...first, id: 'duplicate' }, second] }] });
+ const p = props(); render(<TVGuide {...p} />);
+ await userEvent.click(await screen.findByRole('button', { name: 'News, 2 overlapping listings' }));
+ expect(screen.getByRole('dialog')).toHaveAccessibleName('Overlapping listings');
+ expect(p.onWatch).not.toHaveBeenCalled();
+ await userEvent.click(screen.getByRole('button', { name: /Program b/ }));
+ expect(screen.getByRole('dialog')).toHaveAccessibleName('Program b');
+ await userEvent.click(screen.getByRole('button', { name: 'Record' }));
+ expect(p.onRecord).toHaveBeenCalledWith(second);
 });

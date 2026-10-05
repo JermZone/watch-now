@@ -692,48 +692,42 @@ it('preserves Search playback entering Guide with an empty Browse group', async 
   expect(screen.queryByTestId('live-player')).toBe(player);
 });
 
-it.each([false, true])('brings Guide playback into view on Watch live (mobile: %s)', async (mobile) => {
+it.each([false, true])('opens dedicated Guide playback and restores the schedule (mobile: %s)', async (mobile) => {
   installLayoutMedia(mobile);
   const fetchMock = installViewerAPI(true, true);
-  const original = fetchMock.getMockImplementation();
-  const now = Date.now();
-  const channel = { id: '41', name: 'World News' };
-  fetchMock.mockImplementation((input, ...args) => String(input).startsWith('/api/live/guide?')
-    ? jsonResponse({ items: [{ channel, programs: [{ id: 'current', title: 'Current report', start: new Date(now - 60000), end: new Date(now + 600000), channel }] }], page: 1, has_more: false, snapshot: 's1' })
-    : original(input, ...args));
   const scroll = vi.fn();
   const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
   Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+  const scrollWindow = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
   try {
     renderViewer();
     await userEvent.click(await screen.findByRole('button', { name: 'Guide', exact: true }));
     const guide = await screen.findByRole('region', { name: 'TV Guide' });
     const logo = await within(guide).findByRole('button', { name: 'Options for World News', exact: true });
-    const watch = async () => {
-      await userEvent.click(logo);
-      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
-    };
+    const grid = within(guide).getByRole('region', { name: /Schedule grid/ });
+    grid.scrollLeft = 125; grid.scrollTop = 80;
+    const guideCalls = () => fetchMock.mock.calls.filter(([path]) => String(path).startsWith('/api/live/guide?')).length;
+    const before = guideCalls();
+    await userEvent.click(logo);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    expect(guide).not.toBeVisible();
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Live playback' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Back to Guide/ })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Guide/ }));
+    expect(guide).toBeVisible();
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
-    await watch();
-    const player = screen.getByTestId('live-player');
-    const playback = screen.getByRole('region', { name: 'Live playback' });
-    expect(playback).toHaveFocus();
-    expect(scroll.mock.instances.at(-1)).toBe(playback);
-    expect(scroll).toHaveBeenLastCalledWith({ block: 'start', behavior: 'instant' });
-    scroll.mockClear();
-    await watch();
-    expect(playback).toHaveFocus();
-    expect(scroll).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('live-player')).toBe(player);
-    await userEvent.click(within(guide).getByRole('button', { name: /Current report/ }));
-    const dialog = screen.getByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Watch live', exact: true }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(playback).toHaveFocus();
-    expect(scroll.mock.instances.at(-1)).toBe(playback);
-    expect(screen.getByTestId('live-player')).toBe(player);
+    expect(grid.scrollLeft).toBe(125); expect(grid.scrollTop).toBe(80);
+    expect(guideCalls()).toBe(before);
+    expect(scrollWindow).toHaveBeenCalled();
+    await userEvent.click(logo);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop', exact: true }));
+    expect(guide).toBeVisible();
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
   } finally {
     if (previousScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previousScroll);
     else delete HTMLElement.prototype.scrollIntoView;
+    scrollWindow.mockRestore();
   }
 });
