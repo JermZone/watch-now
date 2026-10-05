@@ -39,11 +39,16 @@ separate from Watch Now and are not collected by the application.
 
 ## Releases
 
-This source targets **Watch Now 1.2.0**, adding DVR and an expanded TV Guide.
-Check [GitHub Releases](https://github.com/JermZone/watch-now/releases) for the
-published version, release notes, checksums, and verified image digest before
-installing. Use `ghcr.io/jermzone/watch-now:1.2.0` once its release is published,
-or the verified stable `latest` tag. The previous published version is 1.1.0.
+**1.2.1 is being prepared** with desktop viewport scrolling, improved Guide player
+sizing, and automatic Grid loading up to 500 channels per batch. The source Compose
+defaults target 1.2.1; use the published 1.2.0 image until 1.2.1 distribution is
+verified. See [release notes](RELEASE_NOTES.md).
+
+**Watch Now 1.2.0 is published**, adding DVR and an expanded TV Guide.
+See the [1.2.0 release](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
+for release notes, checksums, and the verified image digest. Use
+`ghcr.io/jermzone/watch-now:1.2.0` or pin that digest. Stable `latest` was verified
+against the same image when 1.2.0 was promoted; it can advance with later releases.
 
 Each release includes a `watch-now-<version>-install.zip` containing Compose,
 `.env.example`, installation and feature guides, README, and license. DVR is

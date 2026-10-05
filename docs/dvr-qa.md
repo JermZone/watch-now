@@ -2,7 +2,7 @@
 
 This checklist records the DVR/Guide release scope. The maintainer approved
 production publication on 2026-10-05 after the private QA deployment. Web Video
-Caster remains deferred. Deployment-specific records remain with the private QA
+Caster was subsequently canceled by the maintainer on 2026-10-05. Deployment-specific records remain with the private QA
 stack; do not publish keys or private environment files.
 
 ## Isolated QA deployment

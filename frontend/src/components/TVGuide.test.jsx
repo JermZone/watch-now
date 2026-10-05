@@ -320,6 +320,8 @@ it('loads 50 Grid channels, renders visible rows, and appends 10 once near the b
  }));
  render(<TVGuide {...props()} />);
  await screen.findByText('Showing 50 channels in this batch.');
+ expect(screen.queryByRole('button', { name: 'Load more channels' })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Next channels' })).not.toBeInTheDocument();
  expect(getTVGuide).toHaveBeenCalledTimes(10);
  expect(getTVGuide.mock.calls.slice(1).every(([request]) => request.snapshot === 's1')).toBe(true);
  expect(document.querySelectorAll('[data-guide-row]').length).toBeLessThan(20);
@@ -352,28 +354,32 @@ it('cancels the remaining initial Grid pages when the selected channel changes',
  expect(screen.queryByRole('button', { name: /Program stale,/ })).not.toBeInTheDocument();
 });
 
-it('stops automatic loading at 100 retained channels and continues with an explicit fresh batch', async () => {
- getTVGuide.mockImplementation(async ({ page: number = 1 }) => ({ ...page(), page: number, has_more: number < 24,
+it('stops automatic loading at 500 retained channels and continues with an explicit fresh batch', async () => {
+ getTVGuide.mockImplementation(async ({ page: number = 1 }) => ({ ...page(), page: number, has_more: number < 104,
   items: Array.from({ length: 5 }, (_, i) => ({ channel: { ...channel, id: String((number - 1) * 5 + i), name: `Channel ${(number - 1) * 5 + i}` }, programs: [] })),
  }));
  render(<TVGuide {...props()} />);
  await screen.findByText('Showing 50 channels in this batch.');
+ expect(screen.queryByRole('button', { name: 'Load more channels' })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Next channels' })).not.toBeInTheDocument();
  const grid = screen.getByRole('region', { name: /Schedule grid/ });
  Object.defineProperty(grid, 'clientHeight', { value: 500, configurable: true });
- for (let count = 50; count < 100; count += 10) {
+ for (let count = 50; count < 500; count += 10) {
   Object.defineProperty(grid, 'scrollHeight', { value: 40 + count * 89, configurable: true });
   grid.scrollTop = 40 + count * 89 - 500; fireEvent.scroll(grid);
   await screen.findByText(`Showing ${count + 10} channels in this batch.`);
+  expect(document.querySelectorAll('[data-guide-row]').length).toBeLessThan(20);
+  if (count + 10 < 500) expect(screen.queryByRole('button', { name: 'Next channels' })).not.toBeInTheDocument();
  }
  const calls = getTVGuide.mock.calls.length;
- Object.defineProperty(grid, 'scrollHeight', { value: 8940, configurable: true });
- grid.scrollTop = 8440; fireEvent.scroll(grid);
+ Object.defineProperty(grid, 'scrollHeight', { value: 44540, configurable: true });
+ grid.scrollTop = 44040; fireEvent.scroll(grid);
  expect(getTVGuide).toHaveBeenCalledTimes(calls);
  await userEvent.click(screen.getByRole('button', { name: 'Next channels' }));
  await screen.findByText('Showing 10 channels in this batch.');
  expect(grid.scrollTop).toBe(0);
  expect(getTVGuide).toHaveBeenCalledTimes(calls + 2);
-});
+}, 15000); // Exercise all 100 API pages and 45 incremental scroll loads.
 
 it('borrows only the title space needed from a current airing, never from an ended show', () => {
  const now = new Date(2026, 9, 5, 12).getTime();

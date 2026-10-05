@@ -465,6 +465,7 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .channel-identity h2 { margin: 0 0 0.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; letter-spacing: -0.01em; }
 .detail-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; color: var(--theme--8ba69b); font-size: 0.78rem; }
 .live-player { margin-top: 0.7rem; }
+.video-space { display: contents; }
 .watch-button { min-width: min(100%, 210px); margin-top: 0; }
 .video-frame { position: relative; width: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--theme-rgba-153-207-187-0-14); border-radius: 12px; background: #000; aspect-ratio: 16 / 9; }
 .video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
@@ -997,3 +998,93 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 
 .tv-guide-grid .tv-guide-program.is-current strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; flex-shrink: 0; font-size: .85rem; }
 .tv-guide-now-label { color: #ef6262; font-weight: 700; background: var(--theme--081713); }
+
+/* Desktop owns one viewport. Each content pane uses the space left by its
+   controls; viewport-height guesses on individual panes cause page overflow.
+   The class follows PHONE_LAYOUT_QUERY, including touch phones in landscape. */
+.viewer-shell.is-desktop {
+  height: 100dvh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.is-desktop > .topbar { flex: none; }
+.is-desktop > .viewer-navigation { flex: none; max-height: 45dvh; overflow: auto; }
+.is-desktop .viewer-menu-panel { max-height: calc(100dvh - 5rem); overflow-y: auto; }
+.is-desktop .viewer-content {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.is-desktop .viewer-content > * { flex-shrink: 0; }
+.is-desktop .viewer-grid {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr);
+}
+.is-desktop .channel-panel,
+.is-desktop .channel-panel > div { min-height: 0; height: 100%; }
+.is-desktop .channel-viewport { min-height: 0; height: 100%; overscroll-behavior: contain; }
+.is-desktop .detail-panel { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+/* Reserve space for the channel controls, notices and Now playing caption.
+   Size the dedicated video from the remaining pane, not the browser height. */
+.is-desktop .detail-panel.is-dedicated-player { display: flex; flex-direction: column; }
+.is-desktop .is-dedicated-player > *,
+.is-desktop .is-dedicated-player .live-player > * { flex-shrink: 0; }
+.is-desktop .is-dedicated-player .live-playback-region,
+.is-desktop .is-dedicated-player .live-player { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.is-desktop .is-dedicated-player .video-space {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+.is-desktop .is-dedicated-player .video-frame { width: min(100%, calc(100cqh * 16 / 9)); }
+.is-desktop .is-dedicated-player .guide-playing-title { flex: none; overflow-wrap: anywhere; }
+.is-desktop .guide-view,
+.is-desktop .tv-guide {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.is-desktop .tv-guide { margin: .5rem 0 0; }
+.is-desktop .tv-guide > * { flex-shrink: 0; }
+.is-desktop .tv-guide-grid,
+.is-desktop .tv-guide-agenda { flex: 1; min-height: 0; max-height: none; overflow: auto; overscroll-behavior: contain; }
+.is-desktop .live-search-view,
+.is-desktop .media-section,
+.is-desktop .dvr-section {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: .25rem;
+  overflow-wrap: anywhere;
+}
+.is-desktop .dvr-section { margin-bottom: 0; }
+.viewer-grid[hidden], .guide-view[hidden], .live-search-view[hidden] { display: none; }
+.is-desktop .tv-guide[hidden] { display: none; }
+
+/* Long descriptions and short/zoomed windows must keep modal actions reachable. */
+.confirmation-dialog { max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; overflow-wrap: anywhere; }
+
+@media (max-height: 600px) {
+  .is-desktop > .viewer-navigation { margin-block: .25rem; }
+  .is-desktop .compact-browsing .browse-controls { width: auto; margin-left: auto; }
+  .is-desktop .tv-guide { margin-top: 0; }
+  .is-desktop .tv-guide-controls { margin-bottom: .35rem; }
+  .is-desktop .tv-guide-controls label { flex-direction: row; align-items: center; }
+  .is-desktop .tv-guide-controls select { flex: 1; min-height: 36px; width: 0; padding-block: .35rem; }
+  .is-desktop .tv-guide-timeline { margin-block: .15rem; }
+  .is-desktop .tv-guide-slider-ends { display: none; }
+  .is-desktop .tv-guide-grid { margin-bottom: .35rem; }
+  .is-desktop .tv-guide > .section-hint { margin-bottom: .35rem; }
+}

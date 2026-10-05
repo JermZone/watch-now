@@ -1,5 +1,31 @@
 # Watch Now release notes
 
+## 1.2.1 — Desktop scrolling and Guide loading (prepared)
+
+Publication and exact-image verification are pending. Use the published GitHub
+release and its checksummed digest before updating production.
+
+- Keep desktop navigation visible while channel, search, Guide, catalog, and DVR
+  panes scroll within the viewport. Phone and touch-landscape layouts retain page scrolling.
+- Fit the dedicated Guide video into the space below its controls and captions,
+  including shorter desktop windows.
+- Load Grid channels automatically on downward scroll, starting with 50 and adding
+  10 at a time up to 500 per batch. Virtualized rows and the 10,000-airing bound
+  remain in place; Next channels continues to a new batch. List loading is unchanged.
+
+The maintainer requested production promotion of the Docky QA candidate on
+2026-10-05. Existing automated component and synthetic browser layout tests cover
+these changes. This request does not establish fresh full-device playback or
+account-permission testing on a published image. See [desktop QA](docs/desktop-layout-qa.md).
+Linux AMD64 remains the validated target; codec/device limits and
+[issue #11](https://github.com/JermZone/watch-now/issues/11) remain unchanged.
+
+For Nebula, preserve the current Compose service, ports, upstream/proxy settings,
+and secret mounts. After publication and verification, select the verified 1.2.1
+image digest, pull it, and recreate the service. Remove `pull_policy: never` if
+inherited from local QA. Retain the previous image and configuration for rollback.
+No data migration is needed; restarting ends in-memory sessions.
+
 ## 1.2.0 — DVR and expanded TV Guide
 
 Use the [published release](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
@@ -51,8 +77,10 @@ in-memory sessions. Keep the prior image and Compose settings for rollback.
 ## 1.1.0 — historical preparation notes
 
 Adds Live TV VLC handoff and brings together the reviewed changes since 1.0.0.
-Version metadata is not an announcement that an image is available. Install only
-after the published release provides the matching image digest and assets.
+Version 1.1.0 was published on 2026-10-02. See its
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.1.0)
+for the image digest, assets, and distribution evidence. The preparation-time
+validation scope below is retained as historical context.
 
 ### Highlights
 
@@ -73,7 +101,8 @@ candidates. Integration on main passed Go tests/vet/race, all 150 frontend tests
 audits, Compose/release checks, the Docker build, and the HIGH/CRITICAL image scan.
 Exact device/OS/VLC versions, a measured sustained-playback duration, and independent
 concurrent upstream counts were not supplied. Results apply to the recorded
-candidates; checks on a final published 1.1.0 image remain pending.
+candidates; final published-image checks were pending at preparation time.
+Subsequent distribution evidence is recorded in the linked 1.1.0 release.
 
 [Issue #11](https://github.com/JermZone/watch-now/issues/11), the reported
 unresponsive Watch button after signing out/in, remains unresolved. This release
