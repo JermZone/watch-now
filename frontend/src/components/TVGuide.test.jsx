@@ -191,3 +191,19 @@ it('shows only confirmed dates and clears coverage when the channel changes', as
  await waitFor(() => expect(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]')).toHaveLength(1));
  expect(screen.getByRole('button', { name: 'Today', exact: true })).toBeInTheDocument();
 });
+
+it('uses shared logos in Grid with an accessible missing-logo fallback and names in Agenda', async () => {
+ const logoChannel = { ...channel, has_artwork: true };
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel: logoChannel, programs: [] }] });
+ render(<TVGuide {...props()} isMobile />);
+ const logo = await screen.findByRole('img', { name: 'News logo' });
+ expect(logo).toHaveAttribute('src', '/api/live/channels/41/artwork');
+ expect(logo.parentElement).toHaveClass('channel-artwork');
+ expect(screen.getByRole('group', { name: '7 News' })).toBeInTheDocument();
+ fireEvent.error(logo);
+ expect(screen.queryByRole('img', { name: 'News logo' })).not.toBeInTheDocument();
+ expect(screen.getByText('N')).toBeInTheDocument();
+ expect(screen.getByRole('group', { name: '7 News' })).toBeInTheDocument();
+ await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ expect(screen.getByText('7 News')).toBeVisible();
+});

@@ -3,6 +3,7 @@ import { APIError, getTVGuide } from '../api';
 import Modal from './Modal';
 import { airingTime } from './DVR';
 import LoadingIndicator from './LoadingIndicator';
+import ChannelArtwork from './ChannelArtwork';
 
 const HOUR = 3600000;
 const currentWindow = () => Math.floor(Date.now() / (HOUR / 2)) * (HOUR / 2);
@@ -40,7 +41,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
   const pageFocusPending = useRef(false);
   const end = start + 3 * HOUR;
   const agenda = layout === 'agenda';
-  const laneHeight = isMobile ? 72 : 88;
+  const laneHeight = 88;
   const gridRef = useRef(null);
   useEffect(() => { try { localStorage.setItem('watch-now-guide-layout', layout); } catch { /* Storage is optional. */ } }, [layout]);
   useEffect(() => { if (gridRef.current) gridRef.current.scrollLeft = 0; }, [start]);
@@ -185,7 +186,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
         const lanes = guideLanes(row.programs, start, end);
         const laneCount = Math.max(1, ...lanes.map((p) => p.lane + 1));
         return <div className="tv-guide-row" data-guide-row key={row.channel.id}>
-          <div className="tv-guide-channel"><strong>{row.channel.channel_number} {row.channel.name}</strong><button onClick={() => onWatch(row.channel)} type="button">Watch live</button></div>
+          <div className="tv-guide-channel" role="group" aria-label={`${row.channel.channel_number || ''} ${row.channel.name}`.trim()} title={row.channel.name}>{agenda ? <strong>{row.channel.channel_number} {row.channel.name}</strong> : <ChannelArtwork channel={row.channel} categoryID={categoryID} size="compact" />}<button onClick={() => onWatch(row.channel)} type="button">Watch live</button></div>
           <div className="tv-guide-airings" style={agenda ? undefined : { height: `${laneCount * laneHeight}px` }}>
             {!row.programs.length && <p className="section-hint">No listings supplied for this time.</p>}
             {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, lane, left, width }) => programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * laneHeight}px` }))}

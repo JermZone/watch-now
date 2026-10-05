@@ -910,7 +910,7 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
   .tv-guide-slider { flex-basis: 100%; order: -1; }
 }
 
-.tv-guide-layout { display: flex; align-items: end; gap: .3rem; }
+.tv-guide-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; align-self: end; gap: .3rem; }
 .tv-guide-layout button[aria-pressed="true"] { border-color: currentColor; font-weight: 700; }
 .tv-guide-timeline[hidden] { display: none; }
 .tv-guide-grid-navigation { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .75rem; margin-bottom: .75rem; }
@@ -918,7 +918,10 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 @media (max-width: 600px) {
  .tv-guide-grid .tv-guide-heading, .tv-guide-grid .tv-guide-row { grid-template-columns: 108px 600px; min-width: 708px; }
  .tv-guide-grid .tv-guide-channel { font-size: .8rem; padding: .35rem; gap: .2rem; }
- .tv-guide-grid .tv-guide-program { height: 68px; padding: .35rem; font-size: .8rem; }
+ .tv-guide-grid .tv-guide-program { height: 84px; padding: .35rem; font-size: .8rem; }
  .tv-guide-grid .tv-guide-channel button { padding: .4rem; min-height: 32px; }
  .tv-guide-grid-navigation span { text-align: center; }
 }
+
+.tv-guide-grid .tv-guide-channel { align-items: center; justify-content: center; padding: .3rem; gap: .2rem; }
+.tv-guide-grid .tv-guide-channel .channel-artwork { width: 40px; height: 40px; }
