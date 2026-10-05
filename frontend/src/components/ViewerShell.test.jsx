@@ -723,6 +723,13 @@ it.each([false, true])('opens dedicated Guide playback and restores the schedule
     await userEvent.click(logo);
     await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'Stop', exact: true }));
+    expect(guide).not.toBeVisible();
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to Guide/ })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(guide).not.toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Guide/ }));
     expect(guide).toBeVisible();
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
   } finally {

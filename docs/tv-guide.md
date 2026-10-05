@@ -98,8 +98,9 @@ budgets without measurements.
 ## Guide playback and conflicting listings
 
 Watch live opens a dedicated player view with Back to Guide, channel identity,
-current program information when available, and playback controls. Back and Stop
-stop the stream and restore the mounted Guide's filters, time, and grid scroll
+current program information when available, and playback controls. Stop ends
+playback while leaving the player view open for restarting. Back
+stops the stream and restores the mounted Guide's filters, time, and grid scroll
 position. Guide auto-refresh pauses while the dedicated player is open.
 
 Grid removes exact duplicate listings and combines overlapping airings into one

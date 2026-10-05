@@ -201,6 +201,7 @@ it('uses shared logos in Grid with an accessible missing-logo fallback and names
  expect(logo).toHaveAttribute('src', '/api/live/channels/41/artwork');
  expect(logo.parentElement).toHaveClass('channel-artwork');
  expect(screen.getByRole('group', { name: '7 News' })).toBeInTheDocument();
+ await act(async () => {});
  fireEvent.error(logo);
  expect(screen.queryByRole('img', { name: 'News logo' })).not.toBeInTheDocument();
  expect(screen.getByText('N')).toBeInTheDocument();
