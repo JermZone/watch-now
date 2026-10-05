@@ -39,6 +39,11 @@ separate from Watch Now and are not collected by the application.
 
 ## Releases
 
+**1.2.1 is being prepared** with desktop viewport scrolling, improved Guide player
+sizing, and automatic Grid loading up to 500 channels per batch. The source Compose
+defaults target 1.2.1; use the published 1.2.0 image until 1.2.1 distribution is
+verified. See [release notes](RELEASE_NOTES.md).
+
 **Watch Now 1.2.0 is published**, adding DVR and an expanded TV Guide.
 See the [1.2.0 release](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
 for release notes, checksums, and the verified image digest. Use

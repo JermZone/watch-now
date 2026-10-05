@@ -124,3 +124,13 @@ files were removed. Earlier references to retaining that work describe the
 historical cleanup checkpoint, not the current plan. No WVC code was merged into
 the desktop candidate. This documentation follow-up does not change the deployed
 candidate's application code.
+
+## Production promotion request — 2026-10-05
+
+The maintainer requested moving the current QA candidate to production through
+GitHub and Nebula. Version 1.2.1 prepares the application changes from `802de3e`
+with release metadata and documentation. No additional manual device/account
+results were supplied with that request. GitHub publication, exact published-image
+verification, and stable promotion remain pending. The maintainer will update
+Nebula Compose once the verified image is ready; this preparation does not deploy
+or change Nebula. Preserve the existing production image/configuration for rollback.

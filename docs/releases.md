@@ -1,5 +1,10 @@
 # Maintainer release procedure
 
+Version **1.2.1 is prepared but not published** for the desktop layout and Guide
+loading candidate. The maintainer requested QA-to-production promotion on
+2026-10-05 and will update Nebula Compose after image verification. Follow the
+review, tagged release, exact-image verification, and latest-promotion steps below.
+
 Watch Now **1.2.0 is published**. Its
 [release record](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
 contains distribution verification and stable-promotion evidence. The clean
