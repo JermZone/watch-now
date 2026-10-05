@@ -1,10 +1,13 @@
 # Maintainer release procedure
 
-Read [1.1.0 preparation](release-readiness-1.1.0.md) before publishing. The clean
+Watch Now **1.2.0 is published**. Its
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
+contains distribution verification and stable-promotion evidence. The clean
 source-repository handover is complete; 1.0.0's evidence remains in
-[release readiness](release-readiness.md). The current source is prepared for
-**1.1.0**. Version metadata and release notes do not
-approve stable publication or establish that a registry image exists.
+[release readiness](release-readiness.md), and the
+[1.1.0 preparation record](release-readiness-1.1.0.md) is historical.
+Use the procedure below for future releases. Version metadata and release notes
+alone do not approve stable publication or establish that a registry image exists.
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate historical image;
 do not replace or relabel that historical release.
 
@@ -13,7 +16,7 @@ it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untou
 
 ## Prepare
 
-Update the root package/lock metadata, both image-only Compose defaults, source
+Update the frontend package/lock metadata, both image-only Compose defaults, source
 Compose build argument, and `.env.example` together. The Makefile/CI read the
 package version instead of hard-coding one. Use `-rc.N` during testing and a new
 candidate number after changing a tagged/published candidate. The imported rc.3

@@ -1,9 +1,10 @@
-# Watch Now 1.1.0 release preparation
+# Watch Now 1.1.0 historical release preparation
 
-Status: prepared source, pending maintainer publication approval and distribution
-validation. No 1.1.0 image digest or successful tagged release build is claimed.
-The existing public installation and stable/latest registry tags are unchanged
-by preparation.
+Watch Now 1.1.0 was published on 2026-10-02. See its
+[published release](https://github.com/JermZone/watch-now/releases/tag/v1.1.0)
+for distribution evidence. The preparation record below preserves the checks
+and publication sequence planned before release; it is not a pending checklist.
+Watch Now 1.2.0 has since been published.
 
 ## Source and validation
 
@@ -19,7 +20,7 @@ not presented as a fresh full-device repeat on the prepared 1.1.0 source or imag
 The reported Watch-button problem, [issue #11](https://github.com/JermZone/watch-now/issues/11),
 remains open.
 
-## Publication sequence
+## Historical publication sequence
 
 1. Review and merge the release-preparation PR after its checks pass.
 2. Create the new `v1.1.0` tag at the approved release commit. The enabled Release container workflow runs tests, builds/scans, publishes the versioned image, and creates the GitHub release with checksummed source/install/digest assets.

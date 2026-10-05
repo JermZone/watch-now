@@ -51,8 +51,10 @@ in-memory sessions. Keep the prior image and Compose settings for rollback.
 ## 1.1.0 — historical preparation notes
 
 Adds Live TV VLC handoff and brings together the reviewed changes since 1.0.0.
-Version metadata is not an announcement that an image is available. Install only
-after the published release provides the matching image digest and assets.
+Version 1.1.0 was published on 2026-10-02. See its
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.1.0)
+for the image digest, assets, and distribution evidence. The preparation-time
+validation scope below is retained as historical context.
 
 ### Highlights
 
@@ -73,7 +75,8 @@ candidates. Integration on main passed Go tests/vet/race, all 150 frontend tests
 audits, Compose/release checks, the Docker build, and the HIGH/CRITICAL image scan.
 Exact device/OS/VLC versions, a measured sustained-playback duration, and independent
 concurrent upstream counts were not supplied. Results apply to the recorded
-candidates; checks on a final published 1.1.0 image remain pending.
+candidates; final published-image checks were pending at preparation time.
+Subsequent distribution evidence is recorded in the linked 1.1.0 release.
 
 [Issue #11](https://github.com/JermZone/watch-now/issues/11), the reported
 unresponsive Watch button after signing out/in, remains unresolved. This release
