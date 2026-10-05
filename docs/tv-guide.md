@@ -1,11 +1,11 @@
-# TV Guide (development source)
+# TV Guide (QA candidate)
 
 Live TV now has **Browse / Search / Guide** navigation. Guide is offered when
 program search is enabled and the XC client supports bounded multi-day XMLTV.
 No feed is fetched merely because the navigation button is visible.
 
-Choose a group, channel or day. A compact day strip and half-hour time slider
-move a three-hour window; **Now** returns to the current half-hour. Slider
+Choose a group, channel or day. Grid displays the selected local calendar day.
+List uses a half-hour slider to move a three-hour window; **Now** returns to the current time. Slider
 requests wait until movement pauses, and listings include their dates. Listings
 reload on returning to Guide and after the five-minute cache lifetime while
 visible. Refresh waits while an airing dialog or slider interaction is active;
@@ -14,16 +14,23 @@ seven days ahead, but channel listings may end sooner or have gaps. Date buttons
 (other than Today) appear only for confirmed listings in the filtered lineup.
 Coverage uses the existing seven-day cache, falling back to three and one days
 if feed limits are exceeded. The API returns at most eight local date strings;
-all feed, index, response and rendered-row limits remain unchanged. This is a
+feed, index and response limits remain unchanged; browser batching is bounded below. This is a
 request limit, not a promise of seven days of source data. All times use the
-browser's local timezone, shown beside the window. Calendar-date selection uses
+browser's local timezone. Calendar-date selection uses
 local dates, including daylight-saving changes.
 
 Desktop and phones offer Grid / List, defaulting to Grid and remembering the
 layout locally. Mobile Grid uses large sticky channel logos and horizontal
-scrolling; its Previous/Next hours controls advance the bounded window. Only
-List shows the time slider. Switching layouts retains the time and filters
-without another request.
+scrolling. A native desktop scrollbar above the grid stays synchronized with
+horizontal scrolling without fetching another time window. Today leaves only the elapsed portion of ongoing shows needed to give their
+titles readable space. Ended shows remain excluded, and the Now marker shows
+the actual current time. Current titles can wrap; the boundary advances with
+the guide clock. Future
+days open at midnight. Phones retain swipe navigation.
+Only List shows the time slider. Each layout retains its own day/time while sharing
+channel filters; switching requests the appropriate window. Calendar days use
+local midnight boundaries, including 23- and 25-hour daylight-saving days.
+The feed cache retains current/upcoming airings only. Listings beyond the feed horizon can be absent on the final date.
 Selecting a program opens its details without playback. Current programs offer
 Watch live; current and future programs can open the existing DVR confirmation
 flow. DVR permission checks still happen on the server. A channel's Watch live
@@ -40,16 +47,25 @@ catch-up, start-over, recurring recording, or new media engine is included.
 ## Bounded loading and access
 
 `GET /api/live/guide` accepts UTC `start`/`end`, optional `category_id` and
-`channel_id`, and channel page/snapshot parameters. Windows are at most three
-hours, no more than three hours behind now, and no further than seven days ahead.
-Pages contain at most 20 channels and 500 airings, with a 1 MiB serialized response
-ceiling. Dense/oversized responses fail explicitly rather than hiding airings.
+`channel_id`, browser IANA `timezone`, and channel page/snapshot parameters.
+List windows are at most three hours, no more than three hours behind now, and
+no further than seven days ahead. Grid windows span exactly one local calendar
+day starting today or within the next seven days. The final day's window can
+extend past the feed horizon without extending the upstream fetch.
+List pages contain at most 20 channels; full-day pages contain at most five.
+Both retain the 500-airing and 1 MiB serialized response ceilings.
+Dense/oversized responses fail explicitly rather than hiding airings.
 The UI can navigate to another window/channel or return to today.
 
-**Load more channels** fetches another page from the same snapshot. To bound the
-rendered list, batches hold no more than 60 channels and 500 airings; the next
-batch replaces the previous one. A dense next page can also begin a new batch.
-Refresh returns to the first page. A snapshot change requires refresh instead of
+Grid initially combines up to 50 channels from sequential five-channel API pages.
+Scrolling near the bottom loads 10 more (two pages). Only visible rows plus a small
+overscan are rendered, with fixed row heights preserving the scroll position.
+Automatic loading does not move keyboard focus and pauses on errors or during playback.
+List retains manual pagination with a 60-channel / 500-airing batch limit.
+Grid retains at most 100 channels and 10,000 airings in memory; at the boundary,
+**Next channels** begins a fresh batch. The per-response limits remain unchanged.
+A manual **Load more channels** button remains available in Grid as a fallback.
+Refresh returns to the initial batch. Snapshot changes require refresh instead of
 mixing generations. Snapshot identifiers are bound to the session, window,
 filters, guide generation, and freshly authorized channel lineup.
 
@@ -82,11 +98,30 @@ Browse, Search, and Guide (including an empty Browse group). Recording tests
 cover warm-cache boundaries at 24 and 72 hours and reject altered airings.
 Existing parser budget/concurrency/security tests are reused.
 
-Real household coverage, multi-viewer peak memory, browser-rendered visual QA,
-and device recording/playback checks have not been completed for this candidate.
-Before release, measure 1/3/7-day feeds against the unchanged budgets; verify
-restricted accounts, desktop/mobile guide navigation and exact later-airing
-recording on an expendable program. No installation is changed by this source work.
+Loki household feedback has confirmed the desktop/iPhone controls, grid layout,
+channel scrolling, and Search playback return behavior. Automated checks pass;
+this does not replace final testing of the committed Docky image. Final QA still
+needs multi-viewer memory observation, restricted-account checks, exact future-airing
+recording, and playback/VLC regressions. Use expendable recordings only.
+
+For final QA on Docky, use the existing Portainer stack `watch_now_qa`,
+service/container `dispatcharr-now`, at http://192.168.68.106:9192.
+The earlier isolated port-19195 stack is no longer running. Preserve the current
+Compose settings and change only the candidate image tag. The deployment record
+and prior Compose/image are retained in a private dated rollback directory under
+`/home/jeremy/watch-now-dvr-qa`. Reverting that image in Portainer restores the
+prior candidate; process-local viewer sessions require signing in again.
+
+Final QA checklist:
+- Desktop/iPhone: Grid/List, dates, Now title context, desktop scrollbar and swipe.
+- Grid: 50 initial channels, 10 more on scroll, explicit new batch at 100 channels.
+- Guide/Search: Watch, Stop/restart and Back restore the expected screen and position.
+- Browse Up next description and compact Search airing times.
+- One disposable later-airing recording, restricted access, DVR and VLC playback.
+- Two simultaneous viewers: responsiveness and memory; Live/Movies/Series regression.
+
+Keep the QA PR open for the user's final sign-off. No main-branch merge, GitHub
+publication, or production promotion is included in this checkpoint.
 
 The [draft specification](expanded-tv-guide-spec.md) includes additional proposed
 work. This first implementation uses the shared XMLTV index for View in Guide
@@ -107,3 +142,12 @@ Grid removes exact duplicate listings and combines overlapping airings into one
 block, keeping one row per channel. Tapping a conflict opens a choice of the
 original listings; their start/end times and recording actions remain unchanged.
 This is a display treatment, not a correction to the provider's EPG data.
+
+Browse shows the supplied description for both Now and Up next. Upcoming shows
+retain their own title, times and recording action; only the current show has
+a progress indicator. No extra guide request is needed for the description.
+
+Search playback scrolls to and focuses the player. Back to search results stops
+playback and restores the retained query, results and page position. Stop alone
+leaves channel details open. A stream retained when switching discovery modes
+is hidden on the results screen and can be reopened with Return to player.

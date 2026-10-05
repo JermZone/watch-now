@@ -466,7 +466,7 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .detail-meta { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; color: var(--theme--8ba69b); font-size: 0.78rem; }
 .live-player { margin-top: 0.7rem; }
 .watch-button { min-width: min(100%, 210px); margin-top: 0; }
-.video-frame { position: relative; width: 100%; overflow: hidden; border: 1px solid var(--theme-rgba-153-207-187-0-14); border-radius: 12px; background: #000; aspect-ratio: 16 / 9; }
+.video-frame { position: relative; width: 100%; margin-inline: auto; overflow: hidden; border: 1px solid var(--theme-rgba-153-207-187-0-14); border-radius: 12px; background: #000; aspect-ratio: 16 / 9; }
 .video-frame video { width: 100%; height: 100%; display: block; object-fit: contain; background: #000; }
 .playback-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 0.65rem; color: var(--theme--d7e8e1); background: var(--theme-rgba-3-10-8-0-62); }
 .playback-actions { display: flex; justify-content: flex-end; margin-top: 0.55rem; }
@@ -913,14 +913,12 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .tv-guide-layout { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; align-self: end; gap: .3rem; }
 .tv-guide-layout button[aria-pressed="true"] { border-color: currentColor; font-weight: 700; }
 .tv-guide-timeline[hidden] { display: none; }
-.tv-guide-grid-navigation { display: flex; justify-content: space-between; align-items: center; gap: .5rem; font-size: .75rem; margin-bottom: .75rem; }
 .tv-guide-heading > span { position: sticky; left: 0; background: var(--theme--081713); z-index: 4; }
 @media (max-width: 600px) {
  .tv-guide-grid .tv-guide-heading, .tv-guide-grid .tv-guide-row { grid-template-columns: 108px 600px; min-width: 708px; }
  .tv-guide-grid .tv-guide-channel { font-size: .8rem; padding: .35rem; gap: .2rem; }
  .tv-guide-grid .tv-guide-program { height: 84px; padding: .35rem; font-size: .8rem; }
  .tv-guide-grid .tv-guide-channel button { padding: .4rem; min-height: 32px; }
- .tv-guide-grid-navigation span { text-align: center; }
 }
 
 .tv-guide-grid .tv-guide-channel { align-items: center; justify-content: center; padding: .3rem; gap: .2rem; }
@@ -931,3 +929,71 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .guide-conflict-list { display: grid; gap: .5rem; }
 .guide-conflict-list button { display: flex; flex-direction: column; text-align: left; gap: .3rem; }
 .guide-playing-title { margin: .8rem 0; }
+
+.tv-guide-daybar { display: flex; align-items: center; gap: 1rem; margin-bottom: .4rem; }
+.tv-guide-daybar .tv-guide-days { flex: 0 1 auto; min-width: 0; }
+.tv-guide-daybar .tv-guide-layout {
+  align-self: center;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.tv-guide .tv-guide-layout,
+.tv-guide .tv-guide-days {
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--theme-rgba-153-207-187-0-16);
+  border-radius: 10px;
+  background: var(--theme--081713);
+}
+.tv-guide .tv-guide-layout button,
+.tv-guide .tv-guide-days button {
+  min-width: 70px;
+  min-height: 34px;
+  padding: .35rem .85rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--theme--a9c0b7);
+  font-size: .8rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+.tv-guide .tv-guide-layout button:hover,
+.tv-guide .tv-guide-days button:hover {
+  background: var(--theme-rgba-86-213-164-0-12);
+  color: var(--theme--f3fbf8);
+}
+.tv-guide .tv-guide-layout button[aria-pressed="true"],
+.tv-guide .tv-guide-days button[aria-pressed="true"] {
+  background: var(--theme--69e8b8);
+  color: var(--theme--032118);
+}
+.tv-guide .tv-guide-layout button:focus-visible,
+.tv-guide .tv-guide-days button:focus-visible {
+  outline-offset: -2px;
+}
+
+@media (max-width: 600px), (max-height: 500px) and (max-width: 950px) and (orientation: landscape) and (hover: none) and (pointer: coarse) {
+  .tv-guide .tv-guide-layout button,
+  .tv-guide .tv-guide-days button { min-height: 44px; font-size: .85rem; }
+  .tv-guide .tv-guide-days { margin-bottom: .65rem; }
+}
+
+.tv-guide-grid .tv-guide-heading, .tv-guide-grid .tv-guide-row {
+  grid-template-columns: var(--guide-channel-width) var(--guide-time-width);
+  min-width: calc(var(--guide-channel-width) + var(--guide-time-width));
+}
+
+.tv-guide-scrollbar { overflow-x: scroll; overflow-y: hidden; max-width: 100%; margin: .35rem 0 .6rem; scrollbar-color: var(--theme--73d7b3) var(--theme--081713); }
+.tv-guide-scrollbar > div { height: 1px; }
+.tv-guide-scrollbar::-webkit-scrollbar { height: 14px; }
+.tv-guide-scrollbar::-webkit-scrollbar-track { background: var(--theme--081713); border-radius: 7px; }
+.tv-guide-scrollbar::-webkit-scrollbar-thumb { background: var(--theme--73d7b3); border: 3px solid var(--theme--081713); border-radius: 7px; }
+.tv-guide-heading > .tv-guide-time-labels { display: block; position: relative; height: 1.2em; overflow: hidden; }
+.tv-guide-time-labels > span { position: absolute; white-space: nowrap; padding-left: .25rem; }
+
+.tv-guide-grid .tv-guide-heading { height: 40px; }
+.tv-guide-grid .tv-guide-row { height: 89px; }
+
+.tv-guide-grid .tv-guide-program.is-current strong { white-space: normal; overflow-wrap: anywhere; line-height: 1.15; flex-shrink: 0; font-size: .85rem; }
+.tv-guide-now-label { color: #ef6262; font-weight: 700; background: var(--theme--081713); }

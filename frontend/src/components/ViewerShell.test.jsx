@@ -363,7 +363,7 @@ describe('ViewerShell search', () => {
     expect(screen.getByRole('button', { name: 'Choose channel, current channel Sports Plus' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Search', exact: true }));
     expect(screen.getByRole('searchbox')).toHaveValue('sports');
-    expect(screen.getByRole('region', { name: 'Program guide for World News' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Program guide for World News')).not.toBeVisible();
     const requests = fetchMock.mock.calls.map(([input]) => String(input)).filter((path) => path.startsWith('/api/live/programs/search?'));
     expect(requests.length).toBeGreaterThan(0);
     expect(requests.every((path) => !new URL(path, 'https://now.test').searchParams.has('category_id'))).toBe(true);
@@ -436,15 +436,20 @@ describe('ViewerShell search', () => {
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(within(results).getByRole('button', { name: /Sports Plus/ })).toBe(result);
     expect(search).toHaveValue('sports');
-    expect(screen.getByTestId('live-player')).toBe(player);
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(detail).not.toBeVisible();
     await user.click(result);
     expect(result).not.toBeVisible();
     if (mobile) expect(detail).toHaveFocus();
+    await user.click(within(detail).getByRole('button', { name: 'Watch Live' }));
     await user.click(screen.getByRole('button', { name: 'Clear Live TV search' }));
     expect(search).toHaveValue('');
     expect(search).toHaveFocus();
     expect(screen.queryByLabelText('Live TV search results')).not.toBeInTheDocument();
     expect(screen.getByTestId('live-player')).toHaveTextContent('Playing Sports Plus');
+    expect(screen.getByTestId('live-player')).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Return to player' }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith('/api/live/programs/search?'))).toBe(false);
   });
   it('opens a program-search channel without autoplaying and retains the search results', async () => {
@@ -460,11 +465,12 @@ describe('ViewerShell search', () => {
     expect(result).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(screen.getByRole('button', { name: /Morning report/ })).toBe(result);
-    expect(screen.getByRole('region', { name: 'Program guide for World News' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Program guide for World News')).not.toBeVisible();
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
   });
-  it('starts playback only when Watch Now is explicitly chosen', async () => {
-    installLayoutMedia(false); installViewerAPI(true);
+  it.each([false, true])('opens Search playback and restores results without a trailing player (mobile: %s)', async (mobile) => {
+    installLayoutMedia(mobile);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); installViewerAPI(true);
     const user = userEvent.setup(); renderViewer();
     await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
     await screen.findByRole('navigation', { name: 'Live TV search scope' });
@@ -473,11 +479,20 @@ describe('ViewerShell search', () => {
     await user.click(await screen.findByRole('button', { name: 'Watch Now' }));
     expect(screen.getByRole('searchbox')).toHaveValue('news');
     expect(screen.queryByRole('button', { name: /Morning report/ })).not.toBeInTheDocument();
-    const player = screen.getByTestId('live-player');
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Live playback', exact: true })).toHaveFocus();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'instant' });
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Morning report/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(screen.getByRole('button', { name: /Morning report/ })).toBeInTheDocument();
-    expect(screen.getByTestId('live-player')).toBe(player);
-    expect(player).toHaveTextContent('Playing World News');
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.getByRole('searchbox')).toHaveValue('news');
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: window.scrollY, behavior: 'instant' });
+    expect(screen.getByRole('button', { name: /Morning report/ }).closest('[tabindex="-1"]')).toHaveFocus();
   });
 
   it('reopens retained results from Search, scope changes, or query edits', async () => {

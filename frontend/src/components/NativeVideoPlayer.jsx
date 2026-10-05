@@ -1,3 +1,4 @@
+import VideoFrame from './VideoFrame';
 import LoadingIndicator from './LoadingIndicator';
 import { useEffect, useRef, useState } from 'react';
 
@@ -62,10 +63,10 @@ const NativeVideoPlayer = ({ label = 'Video', onFatalError, source }) => {
 
   return (
     <section className="native-player" aria-label={`${label} playback`}>
-      <div className="video-frame">
+      <VideoFrame>
         <video aria-label={`${label} player`} controls playsInline preload="metadata" ref={videoRef} />
         {loading && <div className="playback-loading" role="status"><LoadingIndicator />Preparing video…</div>}
-      </div>
+      </VideoFrame>
       {autoplayError && <p className="playback-notice" role="status">{autoplayError}</p>}
     </section>
   );

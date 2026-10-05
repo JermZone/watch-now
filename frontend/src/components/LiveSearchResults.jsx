@@ -13,9 +13,14 @@ export const LiveSearchModes = ({ onChange, scope }) => (
 );
 
 const PAGE_SIZE = 20;
-const formatTime = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Time unavailable' : new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(date);
+const formatAiring = (start, end) => {
+  const first = new Date(start);
+  const last = new Date(end);
+  if (Number.isNaN(first.getTime()) || Number.isNaN(last.getTime())) return 'Time unavailable';
+  const date = (value) => new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(value);
+  const time = (value) => new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }).format(value).replace(/\s/g, '').toLowerCase();
+  const endDate = first.toDateString() === last.toDateString() ? '' : `${date(last)} `;
+  return `${date(first)} ${time(first)} – ${endDate}${time(last)}`;
 };
 const usePrograms = ({ categoryID, debouncedQuery, enabled, onExpired, page, query, status }) => {
   const [state, setState] = useState({ items: [], total: 0, loading: false, error: '', key: '' });
@@ -51,7 +56,7 @@ export const ProgramSearchSection = ({ categoryID, label, onChannels, onPageChan
       {state.items.map((result) => <article className="program-search-card" key={result.id}>
         <button className="search-result-select" onClick={() => onSelectProgram ? onSelectProgram(result) : onSelect(result.channel)} type="button">
           <ChannelArtwork categoryID={categoryID} channel={result.channel} decorative />
-          <span className="search-result-copy"><strong>{result.title}</strong>{result.subtitle && <span>{result.subtitle}</span>}{result.description && <span className="search-description">{result.description}</span>}{result.match_field === 'description' && <span className="match-hint">Matches program description</span>}<span>{result.channel.channel_number ? `${result.channel.channel_number} · ` : ''}{result.channel.name}</span><span>{formatTime(result.start)}–{formatTime(result.end)}</span>{status === 'upcoming' && <span>Starts {formatTime(result.start)}</span>}</span>
+          <span className="search-result-copy"><strong>{result.title}</strong>{result.subtitle && <span>{result.subtitle}</span>}{result.description && <span className="search-description">{result.description}</span>}{result.match_field === 'description' && <span className="match-hint">Matches program description</span>}<span>{result.channel.channel_number ? `${result.channel.channel_number} · ` : ''}{result.channel.name}</span><span>{formatAiring(result.start, result.end)}</span></span>
         </button>
         <RecordButton program={result} onRecord={onRecord} />
         {status === 'now' && <button className="primary-button search-watch-now" onClick={() => onWatch(result.channel)} type="button">Watch Now</button>}

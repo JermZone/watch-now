@@ -132,6 +132,21 @@ func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 	if request("/api/live/guide?start=bad&end=bad").Code != 400 {
 		t.Fatal("invalid window accepted")
 	}
+	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	dayPath := "/api/live/guide?start=" + url.QueryEscape(dayStart.Format(time.RFC3339)) + "&end=" + url.QueryEscape(dayStart.AddDate(0, 0, 1).Format(time.RFC3339))
+	response = request(dayPath)
+	var dayPage tvGuideResponse
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &dayPage) != nil || len(dayPage.Items) != 5 || !dayPage.HasMore {
+		t.Fatalf("calendar day did not use bounded channel pages: %d", response.Code)
+	}
+	response = request(dayPath + "&page=2&snapshot=" + dayPage.Snapshot)
+	var dayNext tvGuideResponse
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &dayNext) != nil || len(dayNext.Items) != 5 || dayNext.Items[0].Channel.ID != "6" {
+		t.Fatal("calendar day pagination failed")
+	}
+	if request(dayPath+"&page=2&snapshot="+first.Snapshot).Code != 409 {
+		t.Fatal("three-hour snapshot reused for calendar day")
+	}
 	// Access is rechecked even when the same guide generation is cached.
 	revoked.Store(true)
 	response = request(firstPath)
@@ -255,5 +270,30 @@ func TestGuideAvailableDatesRespectsLineupAndLocalMidnight(t *testing.T) {
 	}
 	if len(guideAvailableDates(index, nil, now, location)) != 0 {
 		t.Fatal("unauthorized coverage leaked")
+	}
+}
+
+func TestGuideCalendarWindows(t *testing.T) {
+	zone, err := time.LoadLocation("America/Denver")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, date := range []string{"2026-03-08", "2026-11-01", "2026-10-05"} {
+		start, _ := time.ParseInLocation("2006-01-02", date, zone)
+		end := start.AddDate(0, 0, 1)
+		now := start.Add(12 * time.Hour)
+		day, valid := guideWindow(start, end, now, zone)
+		if !day || !valid {
+			t.Fatalf("local day rejected: %s", date)
+		}
+		if _, valid := guideWindow(start, end.Add(time.Hour), now, zone); valid {
+			t.Fatal("oversized day accepted")
+		}
+		if _, valid := guideWindow(start.AddDate(0, 0, -1), start, now, zone); valid {
+			t.Fatal("past day accepted")
+		}
+		if _, valid := guideWindow(start.AddDate(0, 0, 8), end.AddDate(0, 0, 8), now, zone); valid {
+			t.Fatal("out of horizon day accepted")
+		}
 	}
 }

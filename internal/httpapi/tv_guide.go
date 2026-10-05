@@ -49,10 +49,6 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 	start, e1 := time.Parse(time.RFC3339, r.URL.Query().Get("start"))
 	end, e2 := time.Parse(time.RFC3339, r.URL.Query().Get("end"))
 	now := time.Now()
-	if e1 != nil || e2 != nil || !end.After(start) || end.Sub(start) > 3*time.Hour || start.Before(now.Add(-3*time.Hour)) || end.After(now.Add(7*24*time.Hour)) {
-		writeError(w, 400, "invalid_guide_window", "Choose a guide window of up to three hours within the next seven days.")
-		return
-	}
 	channelID := r.URL.Query().Get("channel_id")
 	if !validIdentifier(channelID) {
 		writeError(w, 400, "invalid_channel", "Channel is invalid")
@@ -69,6 +65,11 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 	location, zoneErr := time.LoadLocation(zone)
 	if zoneErr != nil {
 		writeError(w, 400, "invalid_timezone", "Timezone is invalid")
+		return
+	}
+	fullDay, validWindow := guideWindow(start, end, now, location)
+	if e1 != nil || e2 != nil || !validWindow {
+		writeError(w, 400, "invalid_guide_window", "Choose a calendar day or a window of up to three hours within the next seven days.")
 		return
 	}
 	viewer := sessionFromContext(r.Context())
@@ -124,7 +125,10 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "guide_changed", "The guide changed. Refresh the schedule before loading more.")
 		return
 	}
-	const pageSize = 20
+	pageSize := 20
+	if fullDay {
+		pageSize = 5
+	}
 	offset := (q.page - 1) * pageSize
 	if offset > len(selected) {
 		offset = len(selected)
@@ -200,4 +204,16 @@ func guideAvailableDates(index dispatcharr.GuideIndex, channels []dispatcharr.Ch
 		}
 	}
 	return dates
+}
+
+// Calendar days may span 23 or 25 hours at daylight-saving transitions.
+func guideWindow(start, end, now time.Time, location *time.Location) (bool, bool) {
+	localNow := now.In(location)
+	today := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, location)
+	localStart := start.In(location)
+	midnight := time.Date(localStart.Year(), localStart.Month(), localStart.Day(), 0, 0, 0, 0, location)
+	fullDay := start.Equal(midnight) && end.Equal(midnight.AddDate(0, 0, 1))
+	validDay := fullDay && !start.Before(today) && start.Before(now.Add(7*24*time.Hour))
+	validWindow := end.After(start) && end.Sub(start) <= 3*time.Hour && !start.Before(now.Add(-3*time.Hour)) && !end.After(now.Add(7*24*time.Hour))
+	return fullDay, validDay || validWindow
 }

@@ -13,7 +13,7 @@ describe('ProgramGuide', () => {
         error=""
         guide={{
           current: { title: 'Current show', description: 'Current description', start: '2026-09-21T18:00:00Z', end: '2026-09-21T19:00:00Z' },
-          upcoming: { title: 'Next show', start: '2026-09-21T19:00:00Z', end: '2026-09-21T20:00:00Z' },
+          upcoming: { title: 'Next show', description: 'Next description', start: '2026-09-21T19:00:00Z', end: '2026-09-21T20:00:00Z' },
         }}
         loading={false}
         now={now}
@@ -22,6 +22,8 @@ describe('ProgramGuide', () => {
     );
     expect(screen.getByRole('heading', { name: 'Current show' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Next show' })).toBeInTheDocument();
+    expect(screen.getByText('Current description')).toBeInTheDocument();
+    expect(screen.getByText('Next description')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50');
   });
 

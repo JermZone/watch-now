@@ -72,6 +72,7 @@ const ProgramGuide = ({ error, guide, loading, now, onRecord, onRetry }) => {
           <p className="guide-kicker">Up next</p>
           <h3>{guide.upcoming.title || 'Untitled program'}</h3>
           <ProgramTime program={guide.upcoming} />
+          {guide.upcoming.description && <p className="program-description">{guide.upcoming.description}</p>}
           <RecordButton program={guide.upcoming} onRecord={onRecord} />
         </article>
       )}

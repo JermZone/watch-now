@@ -4,7 +4,15 @@ This candidate is for household QA on Docky, not a production release.
 Forgejo `qa/dvr` is the integration branch; GitHub and both `main` branches
 remain unchanged until QA sign-off. Web Video Caster remains shelved.
 
-## Deployment
+## Current deployment (2026-10-05)
+
+Docky now runs the Portainer stack `watch_now_qa`, service/container
+`dispatcharr-now`, on port **9192**. The port-19195 deployment described below is
+historical. Final Guide QA updates the existing stack's exact image tag while
+preserving its configuration and read-only master-key mount. See
+[TV Guide QA](tv-guide.md) for the current scope, checklist and rollback location.
+
+## Original isolated deployment
 
 Use `compose.qa.yaml` as its own project, `watch-now-dvr-qa`. Build from the
 committed QA revision with `VERSION=qa-dvr-<short revision>`, `REVISION=<full
