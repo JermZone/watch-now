@@ -37,12 +37,13 @@ const installLayoutMedia = (initialMatches) => {
   };
 };
 
-const installViewerAPI = (programSearch = false) => {
+const installViewerAPI = (programSearch = false, guide = false) => {
   const now = Date.now();
   const fetchMock = vi.fn((input) => {
     const path = String(input);
     if (path === '/api/auth/logout') return jsonResponse({});
-    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: programSearch });
+    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: programSearch, guide });
+    if (path.startsWith('/api/live/guide?')) return jsonResponse({ items: [{ channel: { id: '41', name: 'World News' }, programs: [] }], page: 1, has_more: false, snapshot: 's1' });
     if (path.startsWith('/api/live/programs/search?')) return jsonResponse({ items: [{ id: 'search1', title: 'Morning report', start: new Date(now - 60000), end: new Date(now + 60000), channel: { id: '41', name: 'World News', channel_number: '7' } }], total: 1, page: 1, page_size: 20 });
     if (path === '/api/live/categories') {
       return jsonResponse([{ id: '2', name: 'News' }, { id: '3', name: 'Sports' }]);
@@ -362,7 +363,7 @@ describe('ViewerShell search', () => {
     expect(screen.getByRole('button', { name: 'Choose channel, current channel Sports Plus' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Search', exact: true }));
     expect(screen.getByRole('searchbox')).toHaveValue('sports');
-    expect(screen.getByRole('region', { name: 'Program guide for World News' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Program guide for World News')).not.toBeVisible();
     const requests = fetchMock.mock.calls.map(([input]) => String(input)).filter((path) => path.startsWith('/api/live/programs/search?'));
     expect(requests.length).toBeGreaterThan(0);
     expect(requests.every((path) => !new URL(path, 'https://now.test').searchParams.has('category_id'))).toBe(true);
@@ -435,15 +436,20 @@ describe('ViewerShell search', () => {
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(within(results).getByRole('button', { name: /Sports Plus/ })).toBe(result);
     expect(search).toHaveValue('sports');
-    expect(screen.getByTestId('live-player')).toBe(player);
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(detail).not.toBeVisible();
     await user.click(result);
     expect(result).not.toBeVisible();
     if (mobile) expect(detail).toHaveFocus();
+    await user.click(within(detail).getByRole('button', { name: 'Watch Live' }));
     await user.click(screen.getByRole('button', { name: 'Clear Live TV search' }));
     expect(search).toHaveValue('');
     expect(search).toHaveFocus();
     expect(screen.queryByLabelText('Live TV search results')).not.toBeInTheDocument();
     expect(screen.getByTestId('live-player')).toHaveTextContent('Playing Sports Plus');
+    expect(screen.getByTestId('live-player')).not.toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Return to player' }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
     expect(fetchMock.mock.calls.some(([input]) => String(input).startsWith('/api/live/programs/search?'))).toBe(false);
   });
   it('opens a program-search channel without autoplaying and retains the search results', async () => {
@@ -459,11 +465,12 @@ describe('ViewerShell search', () => {
     expect(result).not.toBeVisible();
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(screen.getByRole('button', { name: /Morning report/ })).toBe(result);
-    expect(screen.getByRole('region', { name: 'Program guide for World News' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Program guide for World News')).not.toBeVisible();
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
   });
-  it('starts playback only when Watch Now is explicitly chosen', async () => {
-    installLayoutMedia(false); installViewerAPI(true);
+  it.each([false, true])('opens Search playback and restores results without a trailing player (mobile: %s)', async (mobile) => {
+    installLayoutMedia(mobile);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {}); installViewerAPI(true);
     const user = userEvent.setup(); renderViewer();
     await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
     await screen.findByRole('navigation', { name: 'Live TV search scope' });
@@ -472,11 +479,20 @@ describe('ViewerShell search', () => {
     await user.click(await screen.findByRole('button', { name: 'Watch Now' }));
     expect(screen.getByRole('searchbox')).toHaveValue('news');
     expect(screen.queryByRole('button', { name: /Morning report/ })).not.toBeInTheDocument();
-    const player = screen.getByTestId('live-player');
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Live playback', exact: true })).toHaveFocus();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 0, behavior: 'instant' });
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Morning report/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /Back to search results/ }));
     expect(screen.getByRole('button', { name: /Morning report/ })).toBeInTheDocument();
-    expect(screen.getByTestId('live-player')).toBe(player);
-    expect(player).toHaveTextContent('Playing World News');
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.getByRole('searchbox')).toHaveValue('news');
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: window.scrollY, behavior: 'instant' });
+    expect(screen.getByRole('button', { name: /Morning report/ }).closest('[tabindex="-1"]')).toHaveFocus();
   });
 
   it('reopens retained results from Search, scope changes, or query edits', async () => {
@@ -654,4 +670,86 @@ describe('Live search and guide lifecycle', () => {
       expect(fetchMock.mock.calls.filter(([path]) => String(path).includes('/1/epg'))).toHaveLength(1);
     } finally { cleanup(); vi.useRealTimers(); }
   });
+});
+
+it('places Guide next to Browse/Search and preserves playback and browse selection', async () => {
+  installLayoutMedia(false);
+  const fetchMock = installViewerAPI(true, true);
+  renderViewer();
+  await screen.findByRole('button', { name: 'Guide', exact: true });
+  await userEvent.click(await screen.findByRole('button', { name: 'Watch Live', exact: true }));
+  const player = await screen.findByTestId('live-player');
+  await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
+  expect(await screen.findByRole('region', { name: 'TV Guide' })).toBeVisible();
+  expect(screen.getByTestId('live-player')).toBe(player);
+  expect(screen.getByRole('button', { name: 'Guide', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await userEvent.click(screen.getByRole('button', { name: 'Browse', exact: true }));
+  expect(screen.getByTestId('live-player')).toBe(player);
+  await userEvent.click(screen.getByRole('button', { name: 'View in Guide' }));
+  await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).includes('/api/live/guide?') && String(path).includes('channel_id=41'))).toBe(true));
+});
+
+it('preserves Search playback entering Guide with an empty Browse group', async () => {
+  installLayoutMedia(false);
+  const fetchMock = installViewerAPI(true, true);
+  const original = fetchMock.getMockImplementation();
+  fetchMock.mockImplementation((input, ...args) => String(input) === '/api/live/categories'
+    ? jsonResponse([{ id: '2', name: 'News' }, { id: 'empty', name: 'Empty group' }])
+    : original(input, ...args));
+  renderViewer();
+  await screen.findByRole('button', { name: 'Guide', exact: true });
+  await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'empty');
+  await userEvent.click(screen.getByRole('button', { name: 'Search', exact: true }));
+  await userEvent.type(screen.getByRole('searchbox'), 'World');
+  await userEvent.click(await screen.findByRole('button', { name: 'Watch Now', exact: true }));
+  const player = await screen.findByTestId('live-player');
+  await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
+  expect(screen.queryByTestId('live-player')).toBe(player);
+});
+
+it.each([false, true])('opens dedicated Guide playback and restores the schedule (mobile: %s)', async (mobile) => {
+  installLayoutMedia(mobile);
+  const fetchMock = installViewerAPI(true, true);
+  const scroll = vi.fn();
+  const previousScroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scroll });
+  const scrollWindow = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+  try {
+    renderViewer();
+    await userEvent.click(await screen.findByRole('button', { name: 'Guide', exact: true }));
+    const guide = await screen.findByRole('region', { name: 'TV Guide' });
+    const logo = await within(guide).findByRole('button', { name: 'Options for World News', exact: true });
+    const grid = within(guide).getByRole('region', { name: /Schedule grid/ });
+    grid.scrollLeft = 125; grid.scrollTop = 80;
+    const guideCalls = () => fetchMock.mock.calls.filter(([path]) => String(path).startsWith('/api/live/guide?')).length;
+    const before = guideCalls();
+    await userEvent.click(logo);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    expect(guide).not.toBeVisible();
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Live playback' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /Back to Guide/ })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Guide/ }));
+    expect(guide).toBeVisible();
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(grid.scrollLeft).toBe(125); expect(grid.scrollTop).toBe(80);
+    expect(guideCalls()).toBe(before);
+    expect(scrollWindow).toHaveBeenCalled();
+    await userEvent.click(logo);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stop', exact: true }));
+    expect(guide).not.toBeVisible();
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to Guide/ })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
+    expect(screen.getByTestId('live-player')).toBeVisible();
+    expect(guide).not.toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Guide/ }));
+    expect(guide).toBeVisible();
+    expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+  } finally {
+    if (previousScroll) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', previousScroll);
+    else delete HTMLElement.prototype.scrollIntoView;
+    scrollWindow.mockRestore();
+  }
 });

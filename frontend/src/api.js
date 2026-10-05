@@ -154,3 +154,6 @@ export const changeDVR = (path, method, csrfToken, body, { signal } = {}) => req
   method, signal, headers: { 'X-CSRF-Token': csrfToken }, ...(body ? { body: JSON.stringify(body) } : {}),
 });
 export const dvrFileURL = (id, download = false) => `/api/dvr/recordings/${encodeURIComponent(id)}/${download ? 'download' : 'stream'}`;
+
+export const getTVGuide = ({ start, end, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone, categoryID = '', channelID = '', page = 1, snapshot = '', signal } = {}) =>
+  request(`/api/live/guide${queryString({ start, end, timezone, category_id: categoryID, channel_id: channelID, page, snapshot })}`, { signal });

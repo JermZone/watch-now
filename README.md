@@ -20,6 +20,7 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 ## What it does
 
 - Browse live channels and search current/upcoming shows when a viewer-specific guide is available.
+- In the development source, open **Guide** beside Browse/Search for a grid or mobile agenda, with date navigation up to seven days where listings are available. See [TV Guide](docs/tv-guide.md).
 - Browse Movies and Series, watch supported formats in the browser, or use VLC and downloads.
 - In the development source, connect a personal Dispatcharr API key to browse DVR, schedule one-time recordings, and watch/download completed recordings. See [DVR setup and limits](docs/dvr.md).
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.

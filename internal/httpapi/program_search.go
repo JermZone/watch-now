@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -30,7 +31,7 @@ func (s *Server) programSearchEnabled() bool {
 	return s.cfg.ProgramSearchEnabled && ok
 }
 func (s *Server) handleSearchCapabilities(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]bool{"program_search": s.programSearchEnabled(), "dvr": s.dvrEnabled()})
+	writeJSON(w, http.StatusOK, map[string]bool{"program_search": s.programSearchEnabled(), "dvr": s.dvrEnabled(), "guide": s.extendedGuideEnabled()})
 }
 func (s *Server) handleProgramSearch(w http.ResponseWriter, r *http.Request) {
 	if !s.programSearchEnabled() {
@@ -107,7 +108,13 @@ func (s *Server) handleProgramSearch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, catalogPage[programSearchResult]{Items: results, Total: total, Page: q.page, PageSize: q.pageSize})
 }
 func (s *Server) guideForViewer(ctx context.Context, viewer session.Session, channels []dispatcharr.Channel) (dispatcharr.GuideIndex, error) {
+	return s.guideForViewerDays(ctx, viewer, channels, 1)
+}
+func (s *Server) guideForViewerDays(ctx context.Context, viewer session.Session, channels []dispatcharr.Channel, days int) (dispatcharr.GuideIndex, error) {
 	key := viewer.ID + ":program-guide"
+	if days != 1 {
+		key += ":" + strconv.Itoa(days)
+	}
 	value, err := s.lookups.do(ctx, key, func() (any, error) {
 		if cached, ok := s.cache.Get(key); ok {
 			return cached, nil
@@ -119,13 +126,29 @@ func (s *Server) guideForViewer(ctx context.Context, viewer session.Session, cha
 			return nil, dispatcharr.ErrUnavailable
 		}
 		fillStarted := time.Now()
-		index, err := s.dispatcharr.(dispatcharr.GuideAPI).LiveGuide(ctx, viewer.Credentials, channels)
+		var index dispatcharr.GuideIndex
+		var err error
+		if days == 1 {
+			index, err = s.dispatcharr.(dispatcharr.GuideAPI).LiveGuide(ctx, viewer.Credentials, channels)
+		} else if api, ok := s.dispatcharr.(dispatcharr.ExtendedGuideAPI); ok {
+			index, err = api.LiveGuideDays(ctx, viewer.Credentials, channels, days)
+		} else {
+			return nil, dispatcharr.ErrUnavailable
+		}
+		if err == nil && index.FetchedAt.IsZero() {
+			index.FetchedAt = fillStarted
+			index.WindowEnd = fillStarted.Add(time.Duration(days) * 24 * time.Hour)
+		}
 		if _, alive := s.sessions.Get(viewer.ID); !alive {
 			return nil, dispatcharr.ErrUnauthorized
 		}
 		if err != nil {
 			if ctx.Err() == nil && !errors.Is(err, dispatcharr.ErrUnauthorized) {
-				s.cache.Set(key, guideFailure{err}, 256, time.Minute)
+				ttl := time.Minute
+				if errors.Is(err, dispatcharr.ErrGuideLimit) {
+					ttl = 5 * time.Minute
+				}
+				s.cache.Set(key, guideFailure{err}, 256, ttl)
 			}
 			return nil, err
 		}

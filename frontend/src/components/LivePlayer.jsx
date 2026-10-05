@@ -1,3 +1,4 @@
+import VideoFrame from './VideoFrame';
 import LoadingIndicator from './LoadingIndicator';
 import { useEffect, useRef, useState } from 'react';
 import mpegts from 'mpegts.js';
@@ -139,10 +140,10 @@ const LivePlayer = ({ channel, onFatalError }) => {
           <div><strong>Playback warning</strong><p>{playbackWarning}</p></div>
         </div>
       )}
-      <div className="video-frame">
+      <VideoFrame>
         <video aria-label={`Live video for ${channel.name}`} controls key={channel.id} playsInline ref={videoRef} />
         {loading && <div className="playback-loading" role="status"><LoadingIndicator />Loading live stream…</div>}
-      </div>
+      </VideoFrame>
       {autoplayError && <p className="playback-notice" role="status">{autoplayError}</p>}
     </section>
   );

@@ -33,7 +33,7 @@ describe('Live TV search modes and results', () => {
     render(<LiveSearchResults {...data} />);
     await screen.findByRole('button', { name: 'Watch Now' });
     expect(screen.getByRole('region', { name: 'On now search results' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Upcoming search results' })).toHaveTextContent('Starts');
+    expect(screen.getByRole('region', { name: 'Upcoming search results' })).not.toHaveTextContent('Starts');
     expect(screen.getAllByRole('button', { name: 'Watch Now' })).toHaveLength(1);
     await user.click(screen.getByRole('button', { name: 'Watch Now' }));
     expect(data.onWatch).toHaveBeenCalledWith(channel);
@@ -66,4 +66,16 @@ describe('Live TV search modes and results', () => {
     await user.click(await screen.findByRole('button', { name: 'Search channels' }));
     expect(data.onScopeChange).toHaveBeenCalledWith('channels');
   });
+});
+
+it.each([
+  ['2026-10-05T00:00:00', '2026-10-05T01:00:00', 'Oct 5 12:00am – 1:00am'],
+  ['2026-10-05T11:30:00', '2026-10-05T12:30:00', 'Oct 5 11:30am – 12:30pm'],
+  ['2026-10-05T23:00:00', '2026-10-06T01:00:00', 'Oct 5 11:00pm – Oct 6 1:00am'],
+  ['invalid', 'invalid', 'Time unavailable'],
+])('shows a single compact local airing range for %s', async (start, end, expected) => {
+  getProgramSearch.mockResolvedValue({ items: [{ ...nowResult, start, end }], total: 1 });
+  render(<LiveSearchResults {...props()} scope="upcoming" />);
+  expect(await screen.findByText(expected)).toBeInTheDocument();
+  expect(screen.queryByText(/^Starts /)).not.toBeInTheDocument();
 });

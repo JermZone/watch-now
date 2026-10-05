@@ -106,6 +106,7 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("GET /api/live/guide", s.requireSession(http.HandlerFunc(s.handleTVGuide)))
 	for _, pattern := range []string{"GET /api/dvr/connection", "POST /api/dvr/connection", "DELETE /api/dvr/connection", "GET /api/dvr/recordings", "POST /api/dvr/recordings", "DELETE /api/dvr/recordings/{recording_id}", "POST /api/dvr/recordings/{recording_id}/{action}", "GET /api/dvr/recordings/{recording_id}/{resource}"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleDVR)))
 	}
