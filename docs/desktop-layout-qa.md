@@ -106,3 +106,21 @@ Grid loading changes. It does not authorize a production release. Record the
 committed candidate, exact transferred image identity, deployment checks and
 rollback location in the private QA deployment record. Manual Docky acceptance
 remains pending.
+
+
+## Docky deployment and repository cleanup — 2026-10-05
+
+Docky QA is running `qa-desktop-802de3e` from commit
+`802de3e1144318260830cd8b7db8496c440d1944`. Local and transferred image identities
+matched. Liveness, upstream readiness, anonymous session/Guide/DVR denial,
+version/revision labels, and Docker health passed. Deployment preserved the
+existing QA configuration and retained its previous image and a rollback script.
+The private deployment record holds the exact image ID and rollback location.
+Nebula production remains unchanged, and manual Docky acceptance is pending.
+
+The QA branch is backed up on Forgejo. The maintainer canceled Web Video Caster;
+its local prototype stash, branch, test container, images, and temporary build
+files were removed. Earlier references to retaining that work describe the
+historical cleanup checkpoint, not the current plan. No WVC code was merged into
+the desktop candidate. This documentation follow-up does not change the deployed
+candidate's application code.

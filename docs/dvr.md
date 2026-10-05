@@ -109,7 +109,8 @@ Completed media supports validated single HTTP byte ranges, bounded relay buffer
 
 Active-recording playback, start-over/pause-live TV, saved resume positions, automatic commercial skipping, and recurring/series recording rules are not implemented here. A completed-file range test is not evidence that a growing recording can seek or resume reliably. The football workflow needs a separate trial against 0.31.0 using real recordings, browser/device checks, and restart/reconnect cases before promising it.
 
-Web Video Caster remains shelved separately; it is not part of this branch.
+Web Video Caster was canceled by the maintainer on 2026-10-05. Its separate
+prototype and test deployment were removed; it is not part of Watch Now.
 
 ## Validation
 
