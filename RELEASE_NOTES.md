@@ -1,6 +1,54 @@
 # Watch Now release notes
 
-## 1.1.0 — prepared, pending publication
+## 1.2.0 — DVR and expanded TV Guide
+
+Use the [published release](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
+for the verified image digest and distribution checks; source metadata alone does
+not confirm image availability.
+
+### Highlights
+
+- Browse a multi-day TV Guide in Grid or List on desktop and mobile. Grid shows
+  the selected day's remaining schedule, with readable current-show context,
+  a desktop horizontal scrollbar, and touch scrolling. List retains its time-window slider.
+- Start with 50 channels and reveal 10 more on scroll, with bounded batches for
+  larger lineups. Only dates with available listings are offered. Schedule depth
+  depends on Dispatcharr's data and the existing memory limits (up to seven days).
+- Open Guide playback in a dedicated view. Stop keeps the player ready to restart;
+  Back stops playback and restores discovery. Search playback also restores results.
+- Show channel logos, group conflicting listings into one channel row, include
+  Up next descriptions, and shorten redundant airing timestamps.
+- Connect optional DVR through supported Dispatcharr HTTP APIs: browse completed
+  recordings, play/download or open in VLC, schedule exact guide airings, and
+  manage scheduled/active recordings according to account permissions.
+- Configure a server-side master API key or per-user keys; viewer credentials and
+  Dispatcharr keys stay off browser-facing media URLs. No database, transcoder,
+  or additional container is required.
+
+### Validation and limits
+
+The maintainer approved production publication after development feedback and
+QA deployment. Automated coverage includes DVR permissions and exact-airing
+validation, bounded guide loading, overlapping listings, and playback navigation.
+Release CI and exact published-image verification are recorded on GitHub.
+This approval does not assert that every manual account/device or concurrent-viewer
+scenario was independently repeated on the published image.
+
+Linux AMD64 remains the validated container target. Playback depends on codecs
+and device support. DVR recordings are shared Dispatcharr resources. Growing-file
+playback, recurring recording rules, pause-live TV, and saved resume positions
+remain outside scope. Search still covers 24 hours.
+[Issue #11](https://github.com/JermZone/watch-now/issues/11) is not claimed fixed.
+
+### Upgrade
+
+Keep your current Compose service name, port, upstream URL, proxy settings, and
+secret mounts. Replace the image with the verified 1.2.0 tag/digest and pull it;
+remove a local-QA `pull_policy: never` if present. Optional DVR needs the API-key
+configuration in [DVR](docs/dvr.md). No data migration is needed; restarting ends
+in-memory sessions. Keep the prior image and Compose settings for rollback.
+
+## 1.1.0 — historical preparation notes
 
 Adds Live TV VLC handoff and brings together the reviewed changes since 1.0.0.
 Version metadata is not an announcement that an image is available. Install only

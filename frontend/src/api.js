@@ -147,3 +147,13 @@ export const createEpisodeVLC = (seriesID, episodeID, csrfToken) =>
 
 export const getLiveSearchCapabilities = ({ signal } = {}) => request('/api/live/search/capabilities', { signal });
 export const getProgramSearch = ({ categoryID = '', search, status = 'now', page = 1, pageSize = 20, signal } = {}) => request(`/api/live/programs/search${queryString({ category_id: categoryID, search: search.trim(), status, page, page_size: pageSize })}`, { signal });
+
+export const getDVRConnection = ({ signal } = {}) => request('/api/dvr/connection', { signal });
+export const getDVRRecordings = ({ signal } = {}) => request('/api/dvr/recordings', { signal });
+export const changeDVR = (path, method, csrfToken, body, { signal } = {}) => request(`/api/dvr/${path}`, {
+  method, signal, headers: { 'X-CSRF-Token': csrfToken }, ...(body ? { body: JSON.stringify(body) } : {}),
+});
+export const dvrFileURL = (id, download = false) => `/api/dvr/recordings/${encodeURIComponent(id)}/${download ? 'download' : 'stream'}`;
+
+export const getTVGuide = ({ start, end, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone, categoryID = '', channelID = '', page = 1, snapshot = '', signal } = {}) =>
+  request(`/api/live/guide${queryString({ start, end, timezone, category_id: categoryID, channel_id: channelID, page, snapshot })}`, { signal });

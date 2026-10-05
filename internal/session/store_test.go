@@ -94,3 +94,25 @@ func TestActivePlaybackSuspendsOnlyIdleExpiration(t *testing.T) {
 		t.Fatal("active playback survived the absolute timeout")
 	}
 }
+
+func TestDVRKeyCannotResurrectOrReplaceNewConnection(t *testing.T) {
+	store := NewStore(time.Hour, 2*time.Hour, 4)
+	viewer, err := store.Create(dispatcharr.Credentials{Username: "viewer"}, "viewer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !store.SetDVRKey(viewer.ID, "", "first") || !store.SetDVRKey(viewer.ID, "first", "second") {
+		t.Fatal("connect failed")
+	}
+	if store.SetDVRKey(viewer.ID, "first", "") {
+		t.Fatal("stale request cleared newer key")
+	}
+	current, _ := store.Get(viewer.ID)
+	if current.DVRKey != "second" {
+		t.Fatal("key was overwritten")
+	}
+	store.Delete(viewer.ID)
+	if store.SetDVRKey(viewer.ID, "second", "third") {
+		t.Fatal("logged-out session resurrected")
+	}
+}

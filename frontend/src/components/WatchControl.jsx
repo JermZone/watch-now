@@ -23,6 +23,7 @@ const acknowledgeVLC = () => {
 
 const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
+  onDelete, deleteLoading = false,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
   watchLabel = 'Watch',
 }) => {
@@ -205,6 +206,7 @@ const WatchControl = ({
           {onDownload && <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
             {downloadLoading ? 'Preparing download…' : 'Download'}
           </button>}
+          {onDelete && <button disabled={deleteLoading} onClick={() => choose(onDelete)} role="menuitem" type="button">Delete</button>}
         </div>
       )}
       {showVLCExplanation && !playing && (

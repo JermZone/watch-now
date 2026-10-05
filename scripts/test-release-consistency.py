@@ -61,6 +61,8 @@ class ReleaseConsistencyTests(unittest.TestCase):
                 self.assertNotIn('dispatcharr-now', source)
         self.assertIn('github.event.release.prerelease == false', text('.github/workflows/latest.yml'))
         self.assertIn('watch-now-$VERSION.tar.gz', text('.github/workflows/release.yml'))
+        self.assertIn('docs/dvr.md docs/tv-guide.md release/install/docs/', text('.github/workflows/release.yml'))
+        self.assertIn('compose.dvr.yaml compose.dvr-master.yaml release/install/', text('.github/workflows/release.yml'))
 
     def test_ci_and_make_do_not_pin_stale_version_or_household_scripts(self):
         for path in ['Makefile', '.github/workflows/ci.yml', '.github/workflows/release.yml']:

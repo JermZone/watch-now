@@ -1,0 +1,12 @@
+# Optional master-key alternative to compose.dvr.yaml (per-user keys).
+services:
+  watch-now:
+    environment:
+      NOW_DVR_MASTER_API_KEY: ""
+      NOW_DVR_MASTER_API_KEY_FILE: /run/secrets/watch_now_dvr_master_key
+    secrets:
+      - watch_now_dvr_master_key
+
+secrets:
+  watch_now_dvr_master_key:
+    file: ${NOW_DVR_MASTER_KEY_HOST_FILE:-./secrets/dvr-master-api-key.txt}

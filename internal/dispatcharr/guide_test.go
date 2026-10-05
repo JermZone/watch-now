@@ -138,3 +138,36 @@ func TestGuideHTTPBudgetRedirectAndCredentialSafety(t *testing.T) {
 		})
 	}
 }
+
+func TestGuideDescriptionAndSubtitleAreBounded(t *testing.T) {
+	now := time.Now().UTC().Truncate(time.Second)
+	raw := strings.Replace(guideXML(now, 1), "</title>", "</title><sub-title>  Playoff   final </sub-title>", 1)
+	raw = strings.Replace(raw, strings.Repeat("x", 512), strings.Repeat("é", 2048), 1)
+	index, err := parseGuide(context.Background(), strings.NewReader(raw), []Channel{{ID: "41", Name: "News", epgID: "7"}}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := index.Programs[0]
+	if p.Subtitle != "Playoff final" || len([]rune(p.Description)) != 1024 {
+		t.Fatal("metadata normalization or bounds failed")
+	}
+	if index.Bytes < int64(len(p.Description)) {
+		t.Fatal("description missing from memory accounting")
+	}
+}
+
+func TestExtendedGuideRetainsOnlyRequestedHorizon(t *testing.T) {
+	now := time.Date(2026, 10, 4, 12, 0, 0, 0, time.UTC)
+	raw := `<tv><channel id="7"><display-name>News</display-name></channel>`
+	for _, hours := range []int{1, 48, 120, 169} {
+		start := now.Add(time.Duration(hours) * time.Hour)
+		raw += fmt.Sprintf(`<programme channel="7" start="%s" stop="%s"><title>Future</title></programme>`, start.Format("20060102150405 -0700"), start.Add(time.Hour).Format("20060102150405 -0700"))
+	}
+	raw += `</tv>`
+	for _, tc := range []struct{ days, count int }{{1, 1}, {3, 2}, {7, 3}} {
+		index, err := parseGuideDays(context.Background(), strings.NewReader(raw), []Channel{{ID: "41", Name: "News", epgID: "7"}}, now, tc.days)
+		if err != nil || len(index.Programs) != tc.count || !index.WindowEnd.Equal(now.Add(time.Duration(tc.days)*24*time.Hour)) {
+			t.Fatalf("horizon %d failed: %v", tc.days, err)
+		}
+	}
+}

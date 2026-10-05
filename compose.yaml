@@ -1,11 +1,12 @@
 services:
   watch-now:
-    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.1.0}
+    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.2.0}
     restart: unless-stopped
     ports:
       - "${NOW_HOST_BIND:-127.0.0.1}:${NOW_HOST_PORT:-9192}:8080"
     environment:
       DISPATCHARR_URL: ${DISPATCHARR_URL:?Set DISPATCHARR_URL to an address reachable from this container}
+      NOW_DVR_MASTER_API_KEY: ${NOW_DVR_MASTER_API_KEY:-}
       NOW_PROGRAM_SEARCH_ENABLED: ${NOW_PROGRAM_SEARCH_ENABLED:-true}
       NOW_LISTEN_ADDRESS: ${NOW_LISTEN_ADDRESS:-:8080}
       NOW_COOKIE_SECURE: ${NOW_COOKIE_SECURE:-auto}

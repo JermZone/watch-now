@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -22,9 +23,12 @@ var ErrGuideMapping = errors.New("program guide channel mapping is unsupported")
 
 type GuideProgram struct {
 	ChannelID, ChannelKey, ChannelName, Title string
+	Subtitle, Description                     string
 	Start, End                                time.Time
 }
 type GuideIndex struct {
+	FetchedAt       time.Time
+	WindowEnd       time.Time
 	Programs        []GuideProgram
 	Bytes           int64
 	TransferBytes   int64
@@ -37,12 +41,25 @@ type GuideAPI interface {
 	LiveGuide(context.Context, Credentials, []Channel) (GuideIndex, error)
 }
 
+// ExtendedGuideAPI is optional; basic one-day search remains compatible.
+type ExtendedGuideAPI interface {
+	LiveGuideDays(context.Context, Credentials, []Channel, int) (GuideIndex, error)
+}
+
 func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channels []Channel) (GuideIndex, error) {
+	return c.LiveGuideDays(ctx, credentials, channels, 1)
+}
+
+func (c *Client) LiveGuideDays(ctx context.Context, credentials Credentials, channels []Channel, days int) (GuideIndex, error) {
+	if days != 1 && days != 3 && days != 7 {
+		return GuideIndex{}, ErrInvalidResponse
+	}
+
 	requestURL := *c.baseURL
 	requestURL.Path = strings.TrimRight(requestURL.Path, "/") + "/xmltv.php"
 	requestURL.RawPath = ""
 	query := credentialValues(credentials)
-	query.Set("days", "1")
+	query.Set("days", strconv.Itoa(days))
 	query.Set("prev_days", "0")
 	query.Set("tvg_id_source", "channel_number")
 	requestURL.RawQuery = query.Encode()
@@ -69,7 +86,7 @@ func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channel
 		return GuideIndex{}, ErrGuideLimit
 	}
 	reader := &io.LimitedReader{R: response.Body, N: limit + 1}
-	index, err := parseGuide(ctx, reader, channels, time.Now())
+	index, err := parseGuideDays(ctx, reader, channels, time.Now(), days)
 	if reader.N == 0 {
 		return GuideIndex{}, ErrGuideLimit
 	}
@@ -80,6 +97,10 @@ func (c *Client) LiveGuide(ctx context.Context, credentials Credentials, channel
 }
 
 func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now time.Time) (GuideIndex, error) {
+	return parseGuideDays(ctx, reader, channels, now, 1)
+}
+
+func parseGuideDays(ctx context.Context, reader io.Reader, channels []Channel, now time.Time, days int) (GuideIndex, error) {
 	allowed := make(map[string]Channel)
 	ambiguous := make(map[string]bool)
 	for _, channel := range channels {
@@ -97,8 +118,8 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 	mapped := make(map[string]Channel)
 	defined := make(map[string]bool)
 	decoder := xml.NewDecoder(reader)
-	index := GuideIndex{Programs: []GuideProgram{}}
-	horizon := now.Add(24 * time.Hour)
+	horizon := now.Add(time.Duration(days) * 24 * time.Hour)
+	index := GuideIndex{Programs: []GuideProgram{}, FetchedAt: now, WindowEnd: horizon}
 	scanned := 0
 	var stringBytes int64
 	rootSeen, rootClosed := false, false
@@ -164,10 +185,12 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 					return GuideIndex{}, ErrGuideLimit
 				}
 				var raw struct {
-					Channel string   `xml:"channel,attr"`
-					Start   string   `xml:"start,attr"`
-					End     string   `xml:"stop,attr"`
-					Titles  []string `xml:"title"`
+					Channel      string   `xml:"channel,attr"`
+					Start        string   `xml:"start,attr"`
+					End          string   `xml:"stop,attr"`
+					Titles       []string `xml:"title"`
+					Subtitles    []string `xml:"sub-title"`
+					Descriptions []string `xml:"desc"`
 				}
 				if decoder.DecodeElement(&raw, &node) != nil {
 					return GuideIndex{}, ErrInvalidResponse
@@ -194,13 +217,13 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 				if title == "" || !utf8.ValidString(title) || utf8.RuneCountInString(title) > 160 {
 					continue
 				}
-				program := GuideProgram{ChannelID: channel.ID, ChannelKey: raw.Channel, ChannelName: channel.Name, Title: title, Start: start.UTC(), End: end.UTC()}
-				stringBytes += int64(len(program.ChannelID) + len(program.ChannelKey) + len(program.ChannelName) + len(title))
+				program := GuideProgram{ChannelID: channel.ID, ChannelKey: raw.Channel, ChannelName: channel.Name, Title: title, Subtitle: firstGuideText(raw.Subtitles, 160), Description: firstGuideText(raw.Descriptions, 1024), Start: start.UTC(), End: end.UTC()}
+				stringBytes += int64(len(program.ChannelID) + len(program.ChannelKey) + len(program.ChannelName) + len(title) + len(program.Subtitle) + len(program.Description))
 				if len(index.Programs) >= maxGuidePrograms {
 					return GuideIndex{}, ErrGuideLimit
 				}
 				index.Programs = append(index.Programs, program)
-				index.Bytes = stringBytes + int64(cap(index.Programs))*160
+				index.Bytes = stringBytes + int64(cap(index.Programs))*192
 				if index.Bytes > MaxGuideIndexBytes {
 					return GuideIndex{}, ErrGuideLimit
 				}
@@ -252,3 +275,19 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 	return index, nil
 }
 func normalizedGuideText(text string) string { return strings.Join(strings.Fields(text), " ") }
+
+// Copy bounded, normalized text so a long source field cannot retain its backing buffer.
+func firstGuideText(values []string, limit int) string {
+	for _, value := range values {
+		value = normalizedGuideText(value)
+		if value == "" || !utf8.ValidString(value) {
+			continue
+		}
+		runes := []rune(value)
+		if len(runes) > limit {
+			runes = runes[:limit]
+		}
+		return string(runes)
+	}
+	return ""
+}

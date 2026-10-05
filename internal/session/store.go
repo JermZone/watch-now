@@ -13,6 +13,7 @@ import (
 var ErrCapacity = errors.New("session capacity reached")
 
 type Session struct {
+	DVRKey         string `json:"-"`
 	ID             string
 	CSRFToken      string
 	Credentials    dispatcharr.Credentials
@@ -167,4 +168,25 @@ func randomToken() (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(buffer), nil
+}
+
+// SetDVRKey never resurrects a logged-out or expired session. Compare-and-swap
+// prevents a failed old request from clearing a newly connected credential.
+func (s *Store) SetDVRKey(id, expected, key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.sessions[id]
+	if !ok {
+		return false
+	}
+	if s.expired(entry, s.now()) {
+		delete(s.sessions, id)
+		return false
+	}
+	if entry.DVRKey != expected {
+		return false
+	}
+	entry.DVRKey = key
+	s.sessions[id] = entry
+	return true
 }
