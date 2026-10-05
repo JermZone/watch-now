@@ -924,4 +924,5 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 }
 
 .tv-guide-grid .tv-guide-channel { align-items: center; justify-content: center; padding: .3rem; gap: .2rem; }
-.tv-guide-grid .tv-guide-channel .channel-artwork { width: 40px; height: 40px; }
+.tv-guide-grid .tv-guide-channel .channel-artwork { width: 72px; height: 72px; }
+.tv-guide-grid .tv-guide-channel .tv-guide-logo-button { padding: 0; border-radius: 12px; flex-shrink: 0; }

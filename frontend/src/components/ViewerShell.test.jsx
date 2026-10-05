@@ -708,16 +708,20 @@ it.each([false, true])('brings Guide playback into view on Watch live (mobile: %
     renderViewer();
     await userEvent.click(await screen.findByRole('button', { name: 'Guide', exact: true }));
     const guide = await screen.findByRole('region', { name: 'TV Guide' });
-    const watch = await within(guide).findByRole('button', { name: 'Watch live', exact: true });
+    const logo = await within(guide).findByRole('button', { name: 'Options for World News', exact: true });
+    const watch = async () => {
+      await userEvent.click(logo);
+      await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    };
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
-    await userEvent.click(watch);
+    await watch();
     const player = screen.getByTestId('live-player');
     const playback = screen.getByRole('region', { name: 'Live playback' });
     expect(playback).toHaveFocus();
     expect(scroll.mock.instances.at(-1)).toBe(playback);
     expect(scroll).toHaveBeenLastCalledWith({ block: 'start', behavior: 'instant' });
     scroll.mockClear();
-    await userEvent.click(watch);
+    await watch();
     expect(playback).toHaveFocus();
     expect(scroll).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('live-player')).toBe(player);

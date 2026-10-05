@@ -186,7 +186,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
         const lanes = guideLanes(row.programs, start, end);
         const laneCount = Math.max(1, ...lanes.map((p) => p.lane + 1));
         return <div className="tv-guide-row" data-guide-row key={row.channel.id}>
-          <div className="tv-guide-channel" role="group" aria-label={`${row.channel.channel_number || ''} ${row.channel.name}`.trim()} title={row.channel.name}>{agenda ? <strong>{row.channel.channel_number} {row.channel.name}</strong> : <ChannelArtwork channel={row.channel} categoryID={categoryID} size="compact" />}<button onClick={() => onWatch(row.channel)} type="button">Watch live</button></div>
+          <div className="tv-guide-channel" role="group" aria-label={`${row.channel.channel_number || ''} ${row.channel.name}`.trim()} title={row.channel.name}>{agenda ? <><strong>{row.channel.channel_number} {row.channel.name}</strong><button onClick={() => onWatch(row.channel)} type="button">Watch live</button></> : <button className="tv-guide-logo-button" aria-label={`Options for ${row.channel.name}`} aria-haspopup="dialog" onClick={() => setDetails({ channelOnly: true, channel: row.channel, title: row.channel.name })} type="button"><ChannelArtwork channel={row.channel} categoryID={categoryID} size="compact" /></button>}</div>
           <div className="tv-guide-airings" style={agenda ? undefined : { height: `${laneCount * laneHeight}px` }}>
             {!row.programs.length && <p className="section-hint">No listings supplied for this time.</p>}
             {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, lane, left, width }) => programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * laneHeight}px` }))}
@@ -201,8 +201,8 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     {state.has_more && <button ref={moreRef} disabled={state.loading} onClick={loadMore} type="button">{state.items.length >= 60 || state.items.reduce((n, row) => n + row.programs.length, 0) >= 500 ? 'Next channels' : 'Load more channels'}</button>}
     {state.items.length > 0 && !state.has_more && <p className="section-hint">End of channels in this view. Choose another day or time to browse more schedule.</p>}
     {details && active && <Modal labelledBy="guide-airing-title" onClose={() => setDetails(null)}>
-      <h2 id="guide-airing-title">{details.title}</h2><p>{details.channel.name}</p><p>{airingTime(details)}</p>{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}
-      {Date.parse(details.start) <= clock && Date.parse(details.end) > clock && <button onClick={() => { onWatch(details.channel); setDetails(null); }} type="button">Watch live</button>}
+      <h2 id="guide-airing-title">{details.title}</h2>{details.channelOnly ? <p>Watch this channel’s current live broadcast.</p> : <><p>{details.channel.name}</p><p>{airingTime(details)}</p></>}{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}
+      {(details.channelOnly || (Date.parse(details.start) <= clock && Date.parse(details.end) > clock)) && <button onClick={() => { onWatch(details.channel); setDetails(null); }} type="button">Watch live</button>}
       {onRecord && Date.parse(details.end) > clock && <button onClick={() => { setDetails(null); onRecord(details); }} type="button">Record</button>}
       <button onClick={() => setDetails(null)} type="button">Close</button>
     </Modal>}

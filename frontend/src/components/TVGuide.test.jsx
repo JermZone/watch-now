@@ -207,3 +207,20 @@ it('uses shared logos in Grid with an accessible missing-logo fallback and names
  await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
  expect(screen.getByText('7 News')).toBeVisible();
 });
+
+it('opens channel options from the Grid logo without autoplay and restores focus on close', async () => {
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [] }] });
+ const p = props(); render(<TVGuide {...p} isMobile />);
+ const logo = await screen.findByRole('button', { name: 'Options for News' });
+ expect(screen.queryByRole('button', { name: 'Watch live', exact: true })).not.toBeInTheDocument();
+ await userEvent.click(logo);
+ expect(screen.getByRole('dialog')).toHaveAccessibleName('News');
+ expect(p.onWatch).not.toHaveBeenCalled();
+ expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
+ await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+ expect(logo).toHaveFocus();
+ await userEvent.click(logo);
+ await userEvent.click(screen.getByRole('button', { name: 'Watch live', exact: true }));
+ expect(p.onWatch).toHaveBeenCalledWith(channel);
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});

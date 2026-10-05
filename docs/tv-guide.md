@@ -20,7 +20,7 @@ browser's local timezone, shown beside the window. Calendar-date selection uses
 local dates, including daylight-saving changes.
 
 Desktop and phones offer Grid / List, defaulting to Grid and remembering the
-layout locally. Mobile Grid uses compact sticky channel names and horizontal
+layout locally. Mobile Grid uses large sticky channel logos and horizontal
 scrolling; its Previous/Next hours controls advance the bounded window. Only
 List shows the time slider. Switching layouts retains the time and filters
 without another request.
@@ -28,6 +28,8 @@ Selecting a program opens its details without playback. Current programs offer
 Watch live; current and future programs can open the existing DVR confirmation
 flow. DVR permission checks still happen on the server. A channel's Watch live
 button always tunes its current broadcast, regardless of the displayed date.
+In Grid, tap the channel logo to open its Watch live option; opening the dialog
+does not start playback. List retains its direct Watch live button.
 **View in Guide** in Browse/Search opens Guide filtered to that channel.
 
 Guide filters do not change Browse/Search selections. Existing browser playback
