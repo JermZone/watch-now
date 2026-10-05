@@ -2,14 +2,14 @@ import { useLayoutEffect, useRef } from 'react';
 import { PHONE_LAYOUT_QUERY } from '../layout';
 
 // Keep desktop video within the viewport without changing phone playback sizing.
-export default function VideoFrame({ children }) {
+export default function VideoFrame({ children, contained = false }) {
   const frameRef = useRef(null);
 
   useLayoutEffect(() => {
     const frame = frameRef.current;
     const phone = window.matchMedia?.(PHONE_LAYOUT_QUERY);
     const resize = () => {
-      if (phone?.matches) {
+      if (phone?.matches || contained) {
         frame.style.removeProperty('max-width');
         return;
       }
@@ -21,7 +21,7 @@ export default function VideoFrame({ children }) {
     };
     resize();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(resize);
-    observer?.observe(frame.parentElement);
+    observer?.observe(frame.parentElement.parentElement);
     window.addEventListener('resize', resize);
     phone?.addEventListener?.('change', resize);
     return () => {
@@ -29,7 +29,7 @@ export default function VideoFrame({ children }) {
       window.removeEventListener('resize', resize);
       phone?.removeEventListener?.('change', resize);
     };
-  }, []);
+  }, [contained]);
 
-  return <div className="video-frame" ref={frameRef}>{children}</div>;
+  return <div className="video-space"><div className="video-frame" ref={frameRef}>{children}</div></div>;
 }

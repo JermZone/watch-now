@@ -52,3 +52,15 @@ it('preserves phone sizing including after switching from desktop and cleans up 
   expect(disconnect).toHaveBeenCalledOnce();
   expect(media.removeEventListener).toHaveBeenCalledWith('change', expect.any(Function));
 });
+
+it('lets the dedicated player use its available pane without remounting the video', () => {
+  const { frame, rerender } = setup();
+  const video = screen.getByLabelText('Test video');
+  expect(frame.style.maxWidth).not.toBe('');
+  rerender(<section><VideoFrame contained><video aria-label="Test video" /></VideoFrame></section>);
+  expect(frame.style.maxWidth).toBe('');
+  expect(screen.getByLabelText('Test video')).toBe(video);
+  rerender(<section><VideoFrame><video aria-label="Test video" /></VideoFrame></section>);
+  expect(frame.style.maxWidth).not.toBe('');
+  expect(screen.getByLabelText('Test video')).toBe(video);
+});

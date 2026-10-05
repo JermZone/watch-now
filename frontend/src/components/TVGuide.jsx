@@ -8,7 +8,7 @@ import ChannelArtwork from './ChannelArtwork';
 const HOUR = 3600000;
 const GRID_ROW_HEIGHT = 89;
 const GRID_HEADER_HEIGHT = 40;
-const GRID_MAX_CHANNELS = 100;
+const GRID_MAX_CHANNELS = 500;
 const GRID_MAX_PROGRAMS = 10000;
 const programCount = (rows) => rows.reduce((count, row) => count + row.programs.length, 0);
 
@@ -334,7 +334,7 @@ export default function TVGuide({ active, suspended = false, categories, channel
     </div>
     {!state.loading && !state.error && state.items.length === 0 && <p>No channels available in this view.</p>}
     <p ref={pageStatusRef} tabIndex="-1" className="section-hint" aria-live="polite">{state.items.length > 0 ? `Showing ${state.items.length} channels in this batch.` : ''}</p>
-    {state.has_more && <button ref={moreRef} disabled={state.loading} onClick={() => loadMore()} type="button">{state.loading ? 'Loading channels…' : batchLimit ? 'Next channels' : 'Load more channels'}</button>}
+    {state.has_more && (agenda || batchLimit) && <button ref={moreRef} disabled={state.loading} onClick={() => loadMore()} type="button">{state.loading ? 'Loading channels…' : batchLimit ? 'Next channels' : 'Load more channels'}</button>}
     {state.items.length > 0 && !state.has_more && <p className="section-hint">End of channels in this view. Choose another day or time to browse more schedule.</p>}
     {details && active && <Modal key={details.id || (details.conflicts ? 'conflicts' : 'channel')} labelledBy="guide-airing-title" onClose={() => setDetails(null)}>
       <h2 id="guide-airing-title">{details.title}</h2>{details.conflicts ? <><p>The guide supplies conflicting times for {details.channel.name}. Choose a listing to see its details.</p><div className="guide-conflict-list">{details.conflicts.map((program, index) => <button key={index} type="button" onClick={() => setDetails(program)}><strong>{program.title}</strong><span>{airingTime(program)}</span>{program.subtitle && <span>{program.subtitle}</span>}</button>)}</div></> : details.channelOnly ? <p>Watch this channel’s current live broadcast.</p> : <><p>{details.channel.name}</p><p>{airingTime(details)}</p></>}{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}

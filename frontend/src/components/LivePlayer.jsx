@@ -8,7 +8,7 @@ import { installLiveTrackGuard } from './liveTrackGuard';
 
 const PARTIAL_PLAYBACK_TIMEOUT = 10000;
 
-const LivePlayer = ({ channel, onFatalError }) => {
+const LivePlayer = ({ channel, onFatalError, contained = false }) => {
   const videoRef = useRef(null);
   const playerRef = useRef(null);
   const generationRef = useRef(0);
@@ -140,7 +140,7 @@ const LivePlayer = ({ channel, onFatalError }) => {
           <div><strong>Playback warning</strong><p>{playbackWarning}</p></div>
         </div>
       )}
-      <VideoFrame>
+      <VideoFrame contained={contained}>
         <video aria-label={`Live video for ${channel.name}`} controls key={channel.id} playsInline ref={videoRef} />
         {loading && <div className="playback-loading" role="status"><LoadingIndicator />Loading live stream…</div>}
       </VideoFrame>

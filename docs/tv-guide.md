@@ -62,9 +62,10 @@ Scrolling near the bottom loads 10 more (two pages). Only visible rows plus a sm
 overscan are rendered, with fixed row heights preserving the scroll position.
 Automatic loading does not move keyboard focus and pauses on errors or during playback.
 List retains manual pagination with a 60-channel / 500-airing batch limit.
-Grid retains at most 100 channels and 10,000 airings in memory; at the boundary,
+Grid retains at most 500 channels and 10,000 airings in memory; at the boundary,
 **Next channels** begins a fresh batch. The per-response limits remain unchanged.
-A manual **Load more channels** button remains available in Grid as a fallback.
+Grid loads automatically while scrolling; **Next channels** appears only at a
+batch boundary. List retains its manual **Load more channels** button.
 Refresh returns to the initial batch. Snapshot changes require refresh instead of
 mixing generations. Snapshot identifiers are bound to the session, window,
 filters, guide generation, and freshly authorized channel lineup.
@@ -109,7 +110,7 @@ for rollback; restarting requires viewers to sign in again.
 
 Final QA checklist:
 - Desktop/iPhone: Grid/List, dates, Now title context, desktop scrollbar and swipe.
-- Grid: 50 initial channels, 10 more on scroll, explicit new batch at 100 channels.
+- Grid: 50 initial channels, 10 more on scroll, explicit new batch at 500 channels (or the existing 10,000-airing limit).
 - Guide/Search: Watch, Stop/restart and Back restore the expected screen and position.
 - Browse Up next description and compact Search airing times.
 - One disposable later-airing recording, restricted access, DVR and VLC playback.
