@@ -10,12 +10,20 @@ requests wait until movement pauses, and listings include their dates. Listings
 reload on returning to Guide and after the five-minute cache lifetime while
 visible. Refresh waits while an airing dialog or slider interaction is active;
 failed loads offer Retry instead of a permanent refresh button. Guide supports requests up to
-seven days ahead, but channel listings may end sooner or have gaps. This is a
+seven days ahead, but channel listings may end sooner or have gaps. Date buttons
+(other than Today) appear only for confirmed listings in the filtered lineup.
+Coverage uses the existing seven-day cache, falling back to three and one days
+if feed limits are exceeded. The API returns at most eight local date strings;
+all feed, index, response and rendered-row limits remain unchanged. This is a
 request limit, not a promise of seven days of source data. All times use the
 browser's local timezone, shown beside the window. Calendar-date selection uses
 local dates, including daylight-saving changes.
 
-Desktop offers a channel/time grid or an agenda. Phones use the agenda.
+Desktop and phones offer Grid / Agenda, defaulting to Grid and remembering the
+layout locally. Mobile Grid uses compact sticky channel names and horizontal
+scrolling; its Previous/Next hours controls advance the bounded window. Only
+Agenda shows the time slider. Switching layouts retains the time and filters
+without another request.
 Selecting a program opens its details without playback. Current programs offer
 Watch live; current and future programs can open the existing DVR confirmation
 flow. DVR permission checks still happen on the server. A channel's Watch live

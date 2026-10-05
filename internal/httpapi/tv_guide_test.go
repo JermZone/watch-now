@@ -22,6 +22,7 @@ import (
 func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	var revoked atomic.Bool
+	var limitWide atomic.Bool
 	var feeds atomic.Int32
 	var requestedDays atomic.Int32
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,10 +31,17 @@ func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 			days := r.URL.Query().Get("days")
 			if days == "7" {
 				requestedDays.Store(7)
+			} else if days == "3" {
+				requestedDays.Store(3)
 			} else if days == "1" {
 				requestedDays.Store(1)
 			} else {
 				t.Errorf("unexpected days: %s", days)
+			}
+			if limitWide.Load() && days != "1" {
+				w.Header().Set("Content-Length", "33554433")
+				w.WriteHeader(200)
+				return
 			}
 			io.WriteString(w, `<tv>`)
 			for i := 1; i <= 21; i++ {
@@ -88,6 +96,12 @@ func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &first) != nil || len(first.Items) != 20 || !first.HasMore || len(first.Items[0].Programs) != 1 {
 		t.Fatalf("first guide page failed: %d", response.Code)
 	}
+	if len(first.AvailableDates) < 2 {
+		t.Fatal("multi-day coverage missing")
+	}
+	if request(firstPath+"&timezone=invalid_zone").Code != 400 {
+		t.Fatal("invalid timezone accepted")
+	}
 	if first.Items[0].Programs[0].Start.After(now) {
 		t.Fatal("overlapping program omitted")
 	}
@@ -123,7 +137,7 @@ func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 	response = request(firstPath)
 	var denied tvGuideResponse
 	json.Unmarshal(response.Body.Bytes(), &denied)
-	if response.Code != 200 || len(denied.Items) != 0 {
+	if response.Code != 200 || len(denied.Items) != 0 || len(denied.AvailableDates) != 0 {
 		t.Fatal("warm guide bypassed revocation")
 	}
 	if request(firstPath+"&channel_id=1").Code != 404 {
@@ -131,6 +145,19 @@ func TestTVGuideRealXCWindowsPagingAndRevocation(t *testing.T) {
 	}
 	if request(firstPath+"&page=2&snapshot="+first.Snapshot).Code != 409 {
 		t.Fatal("old lineup pagination accepted")
+	}
+
+	revoked.Store(false)
+	limitWide.Store(true)
+	cookie, _ = loginViewer(t, handler)
+	before := feeds.Load()
+	response = request(firstPath)
+	if response.Code != 200 || requestedDays.Load() != 1 || feeds.Load()-before != 3 {
+		t.Fatal("oversized feeds did not fall back to one day")
+	}
+	before = feeds.Load()
+	if request(firstPath).Code != 200 || feeds.Load() != before {
+		t.Fatal("fallback failed to reuse cached results")
 	}
 }
 
@@ -200,5 +227,33 @@ func TestDVRRecordingAtWarmHorizonBoundary(t *testing.T) {
 				t.Fatal("altered airing accepted")
 			}
 		})
+	}
+}
+
+func TestGuideAvailableDatesRespectsLineupAndLocalMidnight(t *testing.T) {
+	location, err := time.LoadLocation("America/Denver")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 11, 1, 0, 0, 0, 0, location)
+	ch := dispatcharr.Channel{ID: "41", Name: "News", ChannelNumber: "7"}
+	// A program ending exactly at local midnight must not advertise the next day.
+	p := dispatcharr.GuideProgram{ChannelID: ch.ID, ChannelKey: ch.EPGChannelID(), ChannelName: ch.Name, Start: now.Add(23 * time.Hour), End: now.AddDate(0, 0, 1)}
+	index := dispatcharr.GuideIndex{Programs: []dispatcharr.GuideProgram{p}}
+	dates := guideAvailableDates(index, []dispatcharr.Channel{ch}, now, location)
+	if len(dates) != 1 || dates[0] != "2026-11-01" {
+		t.Fatalf("unexpected dates: %v", dates)
+	}
+	index.Programs[0].End = p.End.Add(time.Minute)
+	dates = guideAvailableDates(index, []dispatcharr.Channel{ch}, now, location)
+	if len(dates) != 2 || dates[1] != "2026-11-02" {
+		t.Fatalf("midnight coverage missing: %v", dates)
+	}
+	ch.Name = "Changed"
+	if len(guideAvailableDates(index, []dispatcharr.Channel{ch}, now, location)) != 0 {
+		t.Fatal("stale lineup coverage leaked")
+	}
+	if len(guideAvailableDates(index, nil, now, location)) != 0 {
+		t.Fatal("unauthorized coverage leaked")
 	}
 }

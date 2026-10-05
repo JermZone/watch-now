@@ -155,5 +155,5 @@ export const changeDVR = (path, method, csrfToken, body, { signal } = {}) => req
 });
 export const dvrFileURL = (id, download = false) => `/api/dvr/recordings/${encodeURIComponent(id)}/${download ? 'download' : 'stream'}`;
 
-export const getTVGuide = ({ start, end, categoryID = '', channelID = '', page = 1, snapshot = '', signal } = {}) =>
-  request(`/api/live/guide${queryString({ start, end, category_id: categoryID, channel_id: channelID, page, snapshot })}`, { signal });
+export const getTVGuide = ({ start, end, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone, categoryID = '', channelID = '', page = 1, snapshot = '', signal } = {}) =>
+  request(`/api/live/guide${queryString({ start, end, timezone, category_id: categoryID, channel_id: channelID, page, snapshot })}`, { signal });

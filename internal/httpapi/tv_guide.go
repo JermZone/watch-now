@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	_ "time/tzdata"
 
 	"github.com/JermZone/watch-now/internal/dispatcharr"
 )
@@ -17,6 +18,7 @@ type guideChannelRow struct {
 	Programs []programSearchResult `json:"programs"`
 }
 type tvGuideResponse struct {
+	AvailableDates   []string          `json:"available_dates"`
 	Items            []guideChannelRow `json:"items"`
 	Page             int               `json:"page"`
 	HasMore          bool              `json:"has_more"`
@@ -56,12 +58,18 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "invalid_channel", "Channel is invalid")
 		return
 	}
-	days := 1
-	if end.After(now.Add(24 * time.Hour)) {
-		days = 3
+	zone := r.URL.Query().Get("timezone")
+	if zone == "" {
+		zone = "UTC"
 	}
-	if end.After(now.Add(3 * 24 * time.Hour)) {
-		days = 7
+	if len(zone) > 128 {
+		writeError(w, 400, "invalid_timezone", "Timezone is invalid")
+		return
+	}
+	location, zoneErr := time.LoadLocation(zone)
+	if zoneErr != nil {
+		writeError(w, 400, "invalid_timezone", "Timezone is invalid")
+		return
 	}
 	viewer := sessionFromContext(r.Context())
 	channels, err := s.dispatcharr.LiveChannels(r.Context(), viewer.Credentials, "")
@@ -79,7 +87,14 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "channel_not_found", "Channel is not available to this viewer")
 		return
 	}
-	index, err := s.guideForViewerDays(r.Context(), viewer, channels, days)
+	index, err := s.guideForViewerDays(r.Context(), viewer, channels, 7)
+	// Fall back only for bounded-feed limits, never authorization failures.
+	for _, days := range []int{3, 1} {
+		if !errors.Is(err, dispatcharr.ErrGuideLimit) {
+			break
+		}
+		index, err = s.guideForViewerDays(r.Context(), viewer, channels, days)
+	}
 	if err != nil {
 		if errors.Is(err, dispatcharr.ErrUnauthorized) {
 			s.writeDispatcharrError(w, r, err, false)
@@ -94,7 +109,7 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 	}
 	// Bind pagination to both the guide generation and the fresh authorized lineup.
 	hash := sha256.New()
-	for _, field := range []string{viewer.ID, index.FetchedAt.Format(time.RFC3339Nano), start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339), q.categoryID, channelID} {
+	for _, field := range []string{viewer.ID, index.FetchedAt.Format(time.RFC3339Nano), start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339), q.categoryID, channelID, zone} {
 		hash.Write([]byte(field))
 		hash.Write([]byte{0})
 	}
@@ -115,7 +130,7 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 		offset = len(selected)
 	}
 	stop := min(offset+pageSize, len(selected))
-	response := tvGuideResponse{Items: []guideChannelRow{}, Page: q.page, HasMore: stop < len(selected), Snapshot: snapshot, WindowStart: start, WindowEnd: end, FetchedAt: index.FetchedAt, RequestedThrough: index.WindowEnd}
+	response := tvGuideResponse{AvailableDates: guideAvailableDates(index, selected, now, location), Items: []guideChannelRow{}, Page: q.page, HasMore: stop < len(selected), Snapshot: snapshot, WindowStart: start, WindowEnd: end, FetchedAt: index.FetchedAt, RequestedThrough: index.WindowEnd}
 	rows := make(map[string]int, stop-offset)
 	for _, ch := range selected[offset:stop] {
 		rows[ch.ID] = len(response.Items)
@@ -155,4 +170,34 @@ func (s *Server) handleTVGuide(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(data)))
 	w.WriteHeader(200)
 	_, _ = w.Write(data)
+}
+
+// Coverage spans the entire filtered, currently authorized lineup, not one page.
+func guideAvailableDates(index dispatcharr.GuideIndex, channels []dispatcharr.Channel, now time.Time, location *time.Location) []string {
+	allowed := make(map[string]dispatcharr.Channel, len(channels))
+	for _, ch := range channels {
+		allowed[ch.ID] = ch
+	}
+	local := now.In(location)
+	first := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, location)
+	var present [8]bool
+	for _, p := range index.Programs {
+		ch, ok := allowed[p.ChannelID]
+		if !ok || ch.Name != p.ChannelName || ch.EPGChannelID() != p.ChannelKey || !p.End.After(now) {
+			continue
+		}
+		for i := range present {
+			day := first.AddDate(0, 0, i)
+			if day.Before(now.Add(7*24*time.Hour)) && p.Start.Before(day.AddDate(0, 0, 1)) && p.End.After(day) {
+				present[i] = true
+			}
+		}
+	}
+	dates := []string{}
+	for i, ok := range present {
+		if ok {
+			dates = append(dates, first.AddDate(0, 0, i).Format("2006-01-02"))
+		}
+	}
+	return dates
 }

@@ -4,10 +4,11 @@ import userEvent from '@testing-library/user-event';
 import TVGuide, { guideLanes } from './TVGuide';
 import { APIError, getTVGuide } from '../api';
 vi.mock('../api', async (original) => ({ ...await original(), getTVGuide: vi.fn() }));
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); });
 const channel = { id: '41', name: 'News', channel_number: '7' };
 const airing = (id = 'a', future = false) => ({ id, channel, title: `Program ${id}`, start: new Date(Date.now() + (future ? 86400000 : -3600000)).toISOString(), end: new Date(Date.now() + (future ? 90000000 : 3600000)).toISOString() });
-const page = (id = 'a', more = false, number = 1) => ({ items: [{ channel: { ...channel, id }, programs: [airing(id)] }], snapshot: 's1', page: number, has_more: more });
+const coverage = () => Array.from({ length: 8 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; });
+const page = (id = 'a', more = false, number = 1) => ({ available_dates: coverage(), items: [{ channel: { ...channel, id }, programs: [airing(id)] }], snapshot: 's1', page: number, has_more: more });
 const props = () => ({ active: true, categories: [], channels: [channel], isMobile: false, onExpired: vi.fn(), onWatch: vi.fn(), onRecord: vi.fn(), channelID: '', onChannelChange: vi.fn() });
 
 it('loads only when opened and selects details without autoplay', async () => {
@@ -42,9 +43,10 @@ it('rejects a stale snapshot instead of mixing generations', async () => {
 it('shows mobile agenda and future recording without a future Watch action', async () => {
  getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [airing('future', true)] }] });
  const p = props(); render(<TVGuide {...p} isMobile />);
+ await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
  await userEvent.click(await screen.findByRole('button', { name: /Program future,/ }));
  expect(screen.getByRole('dialog').querySelectorAll('button')).toHaveLength(2);
- expect(screen.queryByLabelText('Guide layout')).not.toBeInTheDocument();
+ expect(screen.getByRole('group', { name: 'Guide layout' })).toBeInTheDocument();
 });
 it('ignores a late response after changing the selected channel', async () => {
  let resolve; getTVGuide.mockImplementationOnce(() => new Promise((done) => { resolve = done; })).mockResolvedValue(page('new'));
@@ -86,6 +88,7 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
  getTVGuide.mockResolvedValue(page());
  render(<TVGuide {...props()} />);
  await screen.findByRole('button', { name: /Program a,/ });
+ await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
  const days = screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]');
  expect(screen.getByRole('button', { name: 'Today', exact: true }).previousElementSibling).toBe(screen.getByRole('button', { name: 'Now', exact: true }));
  await userEvent.click(days[1]);
@@ -157,3 +160,34 @@ it('keeps Retry available after an automatic reload fails', async () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   } finally { cleanup(); vi.useRealTimers(); }
  });
+
+it('offers mobile grid by default and remembers Agenda without refetching or losing time', async () => {
+ getTVGuide.mockResolvedValue(page());
+ const p = props(); const view = render(<TVGuide {...p} isMobile />);
+ await screen.findByRole('button', { name: /Program a,/ });
+ expect(screen.getByRole('button', { name: 'Grid', exact: true })).toHaveAttribute('aria-pressed', 'true');
+ expect(screen.getByRole('region', { name: /Schedule grid/ })).toBeInTheDocument();
+ expect(screen.queryByRole('slider')).not.toBeInTheDocument();
+ const calls = getTVGuide.mock.calls.length;
+ await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ const selected = screen.getByRole('slider').value;
+ expect(getTVGuide).toHaveBeenCalledTimes(calls);
+ expect(localStorage.getItem('watch-now-guide-layout')).toBe('agenda');
+ await userEvent.click(screen.getByRole('button', { name: 'Grid', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'Agenda', exact: true }));
+ expect(screen.getByRole('slider').value).toBe(selected);
+ view.unmount();
+ render(<TVGuide {...p} isMobile />);
+ expect(screen.getByRole('button', { name: 'Agenda', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+it('shows only confirmed dates and clears coverage when the channel changes', async () => {
+ getTVGuide.mockResolvedValue({ ...page(), available_dates: [coverage()[2]] });
+ const p = props(); const view = render(<TVGuide {...p} />);
+ await screen.findByRole('button', { name: /Program a,/ });
+ expect(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]')).toHaveLength(2);
+ getTVGuide.mockResolvedValue({ ...page(), available_dates: [] });
+ view.rerender(<TVGuide {...p} channelID="42" />);
+ await waitFor(() => expect(screen.getByRole('group', { name: 'Guide day' }).querySelectorAll('button[aria-pressed]')).toHaveLength(1));
+ expect(screen.getByRole('button', { name: 'Today', exact: true })).toBeInTheDocument();
+});

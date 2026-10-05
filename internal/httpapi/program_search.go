@@ -144,7 +144,11 @@ func (s *Server) guideForViewerDays(ctx context.Context, viewer session.Session,
 		}
 		if err != nil {
 			if ctx.Err() == nil && !errors.Is(err, dispatcharr.ErrUnauthorized) {
-				s.cache.Set(key, guideFailure{err}, 256, time.Minute)
+				ttl := time.Minute
+				if errors.Is(err, dispatcharr.ErrGuideLimit) {
+					ttl = 5 * time.Minute
+				}
+				s.cache.Set(key, guideFailure{err}, 256, ttl)
 			}
 			return nil, err
 		}

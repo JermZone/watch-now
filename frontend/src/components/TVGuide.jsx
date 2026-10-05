@@ -28,7 +28,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
   const [start, setStart] = useState(currentWindow);
   const [sliderStart, setSliderStart] = useState(currentWindow);
   const [categoryID, setCategoryID] = useState('');
-  const [layout, setLayout] = useState('grid');
+  const [layout, setLayout] = useState(() => { try { return localStorage.getItem('watch-now-guide-layout') === 'agenda' ? 'agenda' : 'grid'; } catch { return 'grid'; } });
   const [state, setState] = useState(empty);
   const [retry, setRetry] = useState(0);
   const [details, setDetails] = useState(null);
@@ -39,7 +39,11 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
   const pageStatusRef = useRef(null);
   const pageFocusPending = useRef(false);
   const end = start + 3 * HOUR;
-  const agenda = isMobile || layout === 'agenda';
+  const agenda = layout === 'agenda';
+  const laneHeight = isMobile ? 72 : 88;
+  const gridRef = useRef(null);
+  useEffect(() => { try { localStorage.setItem('watch-now-guide-layout', layout); } catch { /* Storage is optional. */ } }, [layout]);
+  useEffect(() => { if (gridRef.current) gridRef.current.scrollLeft = 0; }, [start]);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const today = localDate(clock);
   const latestStart = Math.floor((clock + 7 * 24 * HOUR - 3 * HOUR - 1000) / (HOUR / 2)) * (HOUR / 2);
@@ -51,7 +55,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
   for (let day = new Date(clock), i = 0; i < 8; i += 1) {
     day.setHours(0, 0, 0, 0);
     if (day.getTime() > latestStart) break;
-    days.push(day.getTime());
+    if (localDate(day) === today || state.available_dates?.includes(localDate(day))) days.push(day.getTime());
     day.setDate(day.getDate() + 1);
   }
   useEffect(() => {
@@ -79,9 +83,9 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     const controller = new AbortController();
     requestRef.current?.abort(); requestRef.current = controller;
     const version = ++generation.current;
-    setState({ ...empty, loading: true });
+    setState((previous) => ({ ...empty, available_dates: previous.coverageKey === `${categoryID}:${channelID}` ? previous.available_dates : [], coverageKey: `${categoryID}:${channelID}`, loading: true }));
     getTVGuide({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), categoryID, channelID, signal: controller.signal }).then((data) => {
-      if (!controller.signal.aborted && version === generation.current) setState({ ...data, receivedAt: Date.now(), loading: false, error: '' });
+      if (!controller.signal.aborted && version === generation.current) setState({ ...data, coverageKey: `${categoryID}:${channelID}`, receivedAt: Date.now(), loading: false, error: '' });
     }).catch((error) => {
       if (controller.signal.aborted || version !== generation.current) return;
       if (error instanceof APIError && error.status === 401) onExpired('Your viewer session expired. Sign in again.');
@@ -123,7 +127,7 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
       const data = await getTVGuide({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), categoryID, channelID, page: state.page + 1, snapshot: state.snapshot, signal: controller.signal });
       if (!controller.signal.aborted && version === generation.current) {
         pageFocusPending.current = true;
-        setState((value) => ({ ...data, receivedAt: Date.now(), items: replace || [...value.items, ...data.items].reduce((n, row) => n + row.programs.length, 0) > 500 ? data.items : [...value.items, ...data.items], loading: false, error: '' }));
+        setState((value) => ({ ...data, coverageKey: `${categoryID}:${channelID}`, receivedAt: Date.now(), items: replace || [...value.items, ...data.items].reduce((n, row) => n + row.programs.length, 0) > 500 ? data.items : [...value.items, ...data.items], loading: false, error: '' }));
 
       }
     } catch (error) {
@@ -162,10 +166,10 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     <div className="tv-guide-controls">
       <label>Guide group<select value={categoryID} onChange={(e) => { setCategoryID(e.target.value); onChannelChange(''); }}><option value="">All channels</option>{categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
       <label>Guide channel<select value={channelID} onChange={(e) => onChannelChange(e.target.value)}><option value="">All channels</option>{channels.filter((c) => !categoryID || c.category_id === categoryID).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-      {!isMobile && <label>Guide layout<select value={layout} onChange={(e) => setLayout(e.target.value)}><option value="grid">Grid</option><option value="agenda">Agenda</option></select></label>}
+      <div className="tv-guide-layout" role="group" aria-label="Guide layout"><button type="button" aria-pressed={!agenda} onClick={() => setLayout('grid')}>Grid</button><button type="button" aria-pressed={agenda} onClick={() => setLayout('agenda')}>Agenda</button></div>
     </div>
     <div className="tv-guide-days" role="group" aria-label="Guide day"><button onClick={resetNow} type="button">Now</button>{days.map((day) => <button key={day} type="button" aria-pressed={localDate(day) === localDate(sliderStart)} onClick={() => changeDay(day)}>{localDate(day) === today ? 'Today' : dateLabel(day)}</button>)}</div>
-    <div className="tv-guide-timeline">
+    <div className="tv-guide-timeline" hidden={!agenda}>
       <label className="tv-guide-slider">Guide time
         <span>{dateLabel(sliderStart)} · {timeLabel(sliderStart)} – {localDate(sliderStart) !== localDate(sliderStart + 3 * HOUR) ? `${dateLabel(sliderStart + 3 * HOUR)} · ` : ''}{timeLabel(sliderStart + 3 * HOUR)}</span>
         <input type="range" min={sliderMin} max={sliderMax} step={HOUR / 2} value={Math.max(sliderMin, Math.min(sliderStart, sliderMax))} aria-label="Guide start time" aria-valuetext={`${dateLabel(sliderStart)}, ${timeLabel(sliderStart)}`} onChange={(event) => setSliderStart(Number(event.target.value))} />
@@ -175,25 +179,26 @@ export default function TVGuide({ active, categories, channels, isMobile, onExpi
     <p className="section-hint">Showing {dateLabel(start)} · {timeLabel(start)} – {localDate(start) !== localDate(end) ? `${dateLabel(end)} · ` : ''}{timeLabel(end)} · {timezone}. Three-hour view; listings vary by channel.</p>
     {state.error && <div role="alert" className="alert"><p>{state.error}</p><button onClick={() => setRetry((value) => value + 1)} type="button">Retry guide</button><button onClick={resetNow} type="button">Show today</button></div>}
     {state.loading && <p role="status"><LoadingIndicator />Loading guide…</p>}
-    <div className={agenda ? 'tv-guide-agenda' : 'tv-guide-grid'} onKeyDown={keyNavigation}>
+    <div ref={gridRef} tabIndex={agenda ? undefined : 0} role={agenda ? undefined : "region"} aria-label={agenda ? undefined : "Schedule grid, scroll for more times"} className={agenda ? 'tv-guide-agenda' : 'tv-guide-grid'} onKeyDown={keyNavigation}>
       {!agenda && state.items.length > 0 && <div className="tv-guide-heading"><span>Channel</span><div>{Array.from({ length: 6 }, (_, i) => <span key={i}>{localDate(start + i * HOUR / 2) !== localDate(start) ? `${dateLabel(start + i * HOUR / 2)} · ` : ''}{timeLabel(start + i * HOUR / 2)}</span>)}</div></div>}
       {state.items.map((row) => {
         const lanes = guideLanes(row.programs, start, end);
         const laneCount = Math.max(1, ...lanes.map((p) => p.lane + 1));
         return <div className="tv-guide-row" data-guide-row key={row.channel.id}>
           <div className="tv-guide-channel"><strong>{row.channel.channel_number} {row.channel.name}</strong><button onClick={() => onWatch(row.channel)} type="button">Watch live</button></div>
-          <div className="tv-guide-airings" style={agenda ? undefined : { height: `${laneCount * 88}px` }}>
+          <div className="tv-guide-airings" style={agenda ? undefined : { height: `${laneCount * laneHeight}px` }}>
             {!row.programs.length && <p className="section-hint">No listings supplied for this time.</p>}
-            {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, lane, left, width }) => programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * 88}px` }))}
+            {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, lane, left, width }) => programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * laneHeight}px` }))}
             {!agenda && clock >= start && clock < end && <span className="tv-guide-now" aria-hidden="true" style={{ left: `${(clock - start) / (end - start) * 100}%` }} />}
           </div>
         </div>;
       })}
     </div>
+    {!agenda && <div className="tv-guide-grid-navigation"><button type="button" disabled={start <= currentWindow()} onClick={() => { const target = Math.max(currentWindow(), start - 3 * HOUR); setStart(target); setSliderStart(target); }}>Previous hours</button><span>Swipe or scroll sideways for more times</span><button type="button" disabled={start >= latestStart} onClick={() => { const target = Math.min(latestStart, start + 3 * HOUR); setStart(target); setSliderStart(target); }}>Next hours</button></div>}
     {!state.loading && !state.error && state.items.length === 0 && <p>No channels available in this view.</p>}
     <p ref={pageStatusRef} tabIndex="-1" className="section-hint" aria-live="polite">{state.items.length > 0 ? `Showing ${state.items.length} channels in this batch.` : ''}</p>
     {state.has_more && <button ref={moreRef} disabled={state.loading} onClick={loadMore} type="button">{state.items.length >= 60 || state.items.reduce((n, row) => n + row.programs.length, 0) >= 500 ? 'Next channels' : 'Load more channels'}</button>}
-    {state.items.length > 0 && !state.has_more && <p className="section-hint">End of channels in this view. Choose another day or move the time slider to browse more schedule.</p>}
+    {state.items.length > 0 && !state.has_more && <p className="section-hint">End of channels in this view. Choose another day or time to browse more schedule.</p>}
     {details && active && <Modal labelledBy="guide-airing-title" onClose={() => setDetails(null)}>
       <h2 id="guide-airing-title">{details.title}</h2><p>{details.channel.name}</p><p>{airingTime(details)}</p>{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}
       {Date.parse(details.start) <= clock && Date.parse(details.end) > clock && <button onClick={() => { onWatch(details.channel); setDetails(null); }} type="button">Watch live</button>}
