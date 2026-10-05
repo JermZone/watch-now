@@ -96,7 +96,8 @@ jobs:
           cp README.md release/install/
           cp LICENSE release/install/
           mkdir -p release/install/docs
-          cp docs/installation.md release/install/docs/
+          cp docs/installation.md docs/dvr.md docs/tv-guide.md release/install/docs/
+          cp compose.dvr.yaml compose.dvr-master.yaml release/install/
 
           (
             cd release/install

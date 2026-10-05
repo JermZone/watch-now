@@ -1,6 +1,6 @@
-# DVR foundation (development source)
+# DVR
 
-This implementation targets the supported HTTP API exposed by stock Dispatcharr 0.31.0. It checks the fields and permissions it uses, without rejecting later Dispatcharr versions by number. It has automated fixture coverage; household recording and device playback validation are still required before release. No running installation is changed by building this branch.
+This implementation targets the supported HTTP API exposed by stock Dispatcharr 0.31.0. It checks the fields and permissions it uses, without rejecting later Dispatcharr versions by number. It has automated fixture coverage; playback still depends on device and codec support. See the release record for validation evidence.
 
 ## Viewer flow
 
@@ -14,7 +14,7 @@ Admins can manage DVR. Standard Users follow Dispatcharr's `dvr_access` setting:
 - **Attention** holds interrupted, failed, unknown, or not-yet-ready results. Use Dispatcharr to inspect or repair them. Managers may delete them.
 - **Browse / Search** changes how the existing DVR catalog is explored. Search checks title, subtitle, description, and channel within the selected status. **Find something to record** appears only in a selected status with zero recordings and opens Live TV’s Upcoming search when program search is enabled. An empty search result in a nonempty status does not show the shortcut.
 
-Record on a guide entry, search result, or selected-airing details opens a confirmation for that exact channel/start/end. The server verifies those times against the viewer's guide and copies upstream program metadata; the browser cannot create arbitrary manual schedules. Dispatcharr applies its configured recording padding. The accepted schedule is displayed after creation. Recording a program already on captures only what remains. Upcoming discovery retains its existing 24-hour horizon; it does not expand to a multi-day guide in this phase.
+Record on a guide entry, search result, or selected-airing details opens a confirmation for that exact channel/start/end. The server verifies those times against the viewer's guide and copies upstream program metadata; the browser cannot create arbitrary manual schedules. Dispatcharr applies its configured recording padding. The accepted schedule is displayed after creation. Recording a program already on captures only what remains. Upcoming search retains its 24-hour horizon; the separate TV Guide supports later airings when available.
 
 All rows and actions are intersected with the current XC channel lineup, even for administrators. This can be narrower than Dispatcharr's management view. Removing a channel from a viewer's lineup removes its recordings from this interface. Recordings are shared Dispatcharr resources, not a private per-viewer library: cancellation/deletion affects everyone with access. Destructive actions require confirmation.
 
@@ -30,6 +30,16 @@ services:
 ```
 
 Alternatively, store just the key in `secrets/dvr-master-api-key.txt` and use [compose.dvr-master.yaml](../compose.dvr-master.yaml). The overlay mounts it read-only and sets `NOW_DVR_MASTER_API_KEY_FILE=/run/secrets/watch_now_dvr_master_key`. Follow the private-directory/non-root file permissions described below. Environment values are visible to administrators inspecting the container; the file option avoids putting the value in Compose or container environment metadata. Do not commit real keys.
+
+For a published image installation, prepare the secret file and run:
+
+```sh
+docker compose -f compose.yaml -f compose.dvr-master.yaml pull
+docker compose -f compose.yaml -f compose.dvr-master.yaml up -d
+```
+
+Keep the same project name and Compose files on subsequent updates. In Portainer,
+merge the overlay's environment and secret mount into the existing service.
 
 For isolated source testing:
 
@@ -47,7 +57,7 @@ A bad/revoked master key shows a server-configuration error, never a request for
 
 ## Configure keys through Compose
 
-With this development source, you can provision keys once so viewers sign in normally without pasting them. Create `secrets/dvr-api-keys.json` on the Docker host:
+With Watch Now 1.2.0 or later, you can provision keys once so viewers sign in normally without pasting them. Create `secrets/dvr-api-keys.json` on the Docker host:
 
 ```json
 {
@@ -81,7 +91,7 @@ docker compose -p watch-now-source-test -f compose.yaml -f compose.build.yaml -f
 docker compose -p watch-now-source-test -f compose.yaml -f compose.build.yaml -f compose.dvr.yaml up -d --build
 ```
 
-`NOW_DVR_KEYS_HOST_FILE` can select a different host file. For Portainer, mount the file on the Docker endpoint host read-only at `/run/secrets/watch_now_dvr_keys` and set `NOW_DVR_API_KEYS_FILE` to that container path; a workstation-local file is not available to a remote Docker endpoint. This setting requires a DVR-capable build and is not supplied by the existing published image merely by adding the variable.
+`NOW_DVR_KEYS_HOST_FILE` can select a different host file. For Portainer, mount the file on the Docker endpoint host read-only at `/run/secrets/watch_now_dvr_keys` and set `NOW_DVR_API_KEYS_FILE` to that container path; a workstation-local file is not available to a remote Docker endpoint. This setting requires Watch Now 1.2.0 or later.
 
 The file is read at startup (256 KiB / 256 accounts maximum). Invalid files stop startup with a redacted error. Edit the file and restart Watch Now to rotate keys; this also ends existing viewer sessions. Configured keys remain server configuration across restarts and are copied into new matching sessions. Disconnect DVR clears the current session's copy; a new login reconnects from the configured file.
 
@@ -97,7 +107,7 @@ Completed media supports validated single HTTP byte ranges, bounded relay buffer
 
 ## Follow-up work
 
-Active-recording playback, start-over/pause-live TV, saved resume positions, automatic commercial skipping, recurring/series recording rules, and a longer guide horizon are not implemented here. A completed-file range test is not evidence that a growing recording can seek or resume reliably. The football workflow needs a separate trial against 0.31.0 using real recordings, browser/device checks, and restart/reconnect cases before promising it.
+Active-recording playback, start-over/pause-live TV, saved resume positions, automatic commercial skipping, and recurring/series recording rules are not implemented here. A completed-file range test is not evidence that a growing recording can seek or resume reliably. The football workflow needs a separate trial against 0.31.0 using real recordings, browser/device checks, and restart/reconnect cases before promising it.
 
 Web Video Caster remains shelved separately; it is not part of this branch.
 

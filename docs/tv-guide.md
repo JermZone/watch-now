@@ -98,19 +98,14 @@ Browse, Search, and Guide (including an empty Browse group). Recording tests
 cover warm-cache boundaries at 24 and 72 hours and reject altered airings.
 Existing parser budget/concurrency/security tests are reused.
 
-Loki household feedback has confirmed the desktop/iPhone controls, grid layout,
-channel scrolling, and Search playback return behavior. Automated checks pass;
-this does not replace final testing of the committed Docky image. Final QA still
-needs multi-viewer memory observation, restricted-account checks, exact future-airing
-recording, and playback/VLC regressions. Use expendable recordings only.
-
-For final QA on Docky, use the existing Portainer stack `watch_now_qa`,
-service/container `dispatcharr-now`, at http://192.168.68.106:9192.
-The earlier isolated port-19195 stack is no longer running. Preserve the current
-Compose settings and change only the candidate image tag. The deployment record
-and prior Compose/image are retained in a private dated rollback directory under
-`/home/jeremy/watch-now-dvr-qa`. Reverting that image in Portainer restores the
-prior candidate; process-local viewer sessions require signing in again.
+Development feedback confirmed desktop/iPhone controls, grid layout, channel
+scrolling, and Search playback return behavior. The maintainer approved production
+publication on 2026-10-05 after the private QA deployment. This does not establish
+that all manual scenarios below were repeated on the published image. Preserve
+multi-viewer memory, restricted-account, exact future-airing recording, and
+playback/VLC checks as explicit validation limits unless separately recorded.
+Use expendable recordings only. Keep the previous image and Compose configuration
+for rollback; restarting requires viewers to sign in again.
 
 Final QA checklist:
 - Desktop/iPhone: Grid/List, dates, Now title context, desktop scrollbar and swipe.
@@ -120,8 +115,7 @@ Final QA checklist:
 - One disposable later-airing recording, restricted access, DVR and VLC playback.
 - Two simultaneous viewers: responsiveness and memory; Live/Movies/Series regression.
 
-Keep the QA PR open for the user's final sign-off. No main-branch merge, GitHub
-publication, or production promotion is included in this checkpoint.
+Record release CI and exact published-image checks in the GitHub release record.
 
 The [draft specification](expanded-tv-guide-spec.md) includes additional proposed
 work. This first implementation uses the shared XMLTV index for View in Guide

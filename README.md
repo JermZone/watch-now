@@ -20,9 +20,9 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 ## What it does
 
 - Browse live channels and search current/upcoming shows when a viewer-specific guide is available.
-- In the development source, open **Guide** beside Browse/Search for a grid or mobile agenda, with date navigation up to seven days where listings are available. See [TV Guide](docs/tv-guide.md).
+- Open **Guide** beside Browse/Search for Grid or List, with date navigation up to seven days where listings are available. See [TV Guide](docs/tv-guide.md).
 - Browse Movies and Series, watch supported formats in the browser, or use VLC and downloads.
-- In the development source, connect a personal Dispatcharr API key to browse DVR, schedule one-time recordings, and watch/download completed recordings. See [DVR setup and limits](docs/dvr.md).
+- Connect a personal Dispatcharr API key or configure a server-side key to browse DVR, schedule one-time recordings, and watch/download completed recordings. See [DVR setup and limits](docs/dvr.md).
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder.
 
@@ -39,20 +39,17 @@ separate from Watch Now and are not collected by the application.
 
 ## Releases
 
-**Watch Now 1.0.0** is published. Check
-[GitHub Releases](https://github.com/JermZone/watch-now/releases) for release notes,
-source assets, checksums, the verified image digest, and versioned install bundles.
-Install from `ghcr.io/jermzone/watch-now:1.0.0` or the stable `latest` tag.
+This source targets **Watch Now 1.2.0**, adding DVR and an expanded TV Guide.
+Check [GitHub Releases](https://github.com/JermZone/watch-now/releases) for the
+published version, release notes, checksums, and verified image digest before
+installing. Use `ghcr.io/jermzone/watch-now:1.2.0` once its release is published,
+or the verified stable `latest` tag. The previous published version is 1.1.0.
 
-**Watch Now 1.1.0 is being prepared** with Live TV VLC handoff and casting through
-VLC. This source branch's example files target 1.1.0; use its image only after
-that version appears in a published release with a verified digest. See
-[1.1.0 release preparation](docs/release-readiness-1.1.0.md).
-
-Starting with future releases, the release workflow publishes a
-`watch-now-<version>-install.zip` containing the Compose file, `.env.example`,
-installation guide, README, and license. GitHub's release asset download count can
-be used as a privacy-friendly adoption signal without adding telemetry to Watch Now.
+Each release includes a `watch-now-<version>-install.zip` containing Compose,
+`.env.example`, installation and feature guides, README, and license. DVR is
+optional; see [DVR configuration](docs/dvr.md) for server-side API keys and
+account permissions. The [TV Guide](docs/tv-guide.md) uses the viewer's available
+schedule; it cannot create listings missing from Dispatcharr.
 
 The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate,
 unchanged historical image. The clean Watch Now repository intentionally does not
@@ -65,7 +62,7 @@ See [migration](docs/migration.md) before changing an existing installation.
 and back in. Investigation is deferred; the cause and a reliable workaround are
 not verified. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains
 open. The current issue preserves the original report context and retained test
-evidence. The 1.1.0 changes do not resolve that report.
+evidence. This release does not claim to resolve that report.
 
 ## Getting started
 

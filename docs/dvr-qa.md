@@ -1,44 +1,26 @@
 # DVR QA checkpoint
 
-This candidate is for household QA on Docky, not a production release.
-Forgejo `qa/dvr` is the integration branch; GitHub and both `main` branches
-remain unchanged until QA sign-off. Web Video Caster remains shelved.
+This checklist records the DVR/Guide release scope. The maintainer approved
+production publication on 2026-10-05 after the private QA deployment. Web Video
+Caster remains deferred. Deployment-specific records remain with the private QA
+stack; do not publish keys or private environment files.
 
-## Current deployment (2026-10-05)
+## Isolated QA deployment
 
-Docky now runs the Portainer stack `watch_now_qa`, service/container
-`dispatcharr-now`, on port **9192**. The port-19195 deployment described below is
-historical. Final Guide QA updates the existing stack's exact image tag while
-preserving its configuration and read-only master-key mount. See
-[TV Guide QA](tv-guide.md) for the current scope, checklist and rollback location.
-
-## Original isolated deployment
-
-Use `compose.qa.yaml` as its own project, `watch-now-dvr-qa`. Build from the
-committed QA revision with `VERSION=qa-dvr-<short revision>`, `REVISION=<full
-revision>` and `SOURCE_URL` pointing to that Forgejo revision. Transfer the exact
-image to Docky, compare image IDs after loading, and set `NOW_QA_IMAGE` to its
-unique tag. The QA Compose file deliberately never pulls a moving registry tag.
-
-On Docky, keep deployment files in `/home/jeremy/watch-now-dvr-qa`. Its private
-`.env` selects the image, Dispatcharr address, LAN bind `192.168.68.106`, and
-port `19195`. The master key lives in `secrets/dvr-master-api-key.txt`, mounted
-read-only. Protect the directory with mode 0700 and allow container UID 65532 to
-read the key file. Never attach these files to a PR or put credentials in QA notes.
-
-The QA address is http://192.168.68.106:19195. Confirm the expected revision in
-About before testing. The deployment record stored alongside Compose captures
-the revision, image ID, and checks. Existing Docky stacks are not replaced.
-To stop QA, run `docker compose -p watch-now-dvr-qa -f compose.qa.yaml down` from
-that deployment directory. Recording jobs continue in Dispatcharr.
+Use `compose.qa.yaml` as a separate project. Build the committed revision with a
+unique image tag and matching VERSION/REVISION labels. Transfer the exact image,
+compare image IDs, and select it with `NOW_QA_IMAGE`. The QA Compose file deliberately
+never pulls a moving registry tag. Preserve the prior image and Compose settings
+for rollback. Protect secret directories and allow container UID 65532 to read
+mounted key files. Confirm the expected revision in About before testing.
 
 ## Evidence and sign-off
 
 Record the candidate revision, date, device/browser or VLC version, account
-access level, result, and any issue for each check in the Forgejo QA PR.
+access level, result, and any issue for each check in the release QA record.
 Automated fixture tests are distinct from household testing. Earlier successful
-Loki recording/playback and UI feedback are useful evidence, but do not count
-as retesting this exact Docky image.
+development recording/playback and UI feedback are useful evidence, but do not count
+as retesting the exact release image.
 
 | Check | Required household result |
 | --- | --- |
@@ -60,11 +42,11 @@ never cancel or delete someone else's recording as a QA shortcut.
 
 Pass requires the household checks above and no unresolved blocking defects.
 Each source fix creates a new candidate with a new tag, followed by targeted
-retesting and regression checks. The user supplies final QA sign-off before any
-GitHub publication or Nebula deployment.
+retesting and regression checks. Maintainer approval authorizes publication; retain
+any unrun manual checks as limitations rather than claiming them passed.
 
 ## Deferred
 
 Playback during recording, saved resume positions, pause/start-over live TV,
-recurring rules, automatic commercial skipping and discovery beyond 24 hours
-are outside this checkpoint. See [DVR implementation](dvr.md) for limitations.
+recurring rules, and automatic commercial skipping are outside this checkpoint.
+Search remains limited to 24 hours; the Guide supports later airings. See [DVR implementation](dvr.md) for limitations.
