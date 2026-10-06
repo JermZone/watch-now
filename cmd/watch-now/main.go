@@ -30,6 +30,10 @@ func main() {
 		os.Exit(1)
 	}
 
+	if cfg.ShareStorageUnavailable {
+		logger.Warn("Sharing unavailable; check the persistent sharing volume and its permissions. Playback remains available.")
+	}
+
 	transport := &http.Transport{
 		Proxy:                 http.ProxyFromEnvironment,
 		MaxIdleConns:          32,

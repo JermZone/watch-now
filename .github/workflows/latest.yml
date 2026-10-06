@@ -7,7 +7,7 @@ on:
       release_tag:
         description: Published release to promote (newest stable version only)
         required: true
-        default: v1.3.0
+        default: v1.3.1
 permissions:
   contents: read
 concurrency:

@@ -25,6 +25,10 @@ for files in [["compose.yaml"], ["compose.release.yaml"], ["compose.yaml", "comp
     assert service["ports"][0]["host_ip"] == "127.0.0.1"
     assert service["ports"][0]["published"] == "19292"
     assert service["read_only"] and "ALL" in service["cap_drop"]
+    assert service["environment"]["NOW_SHARE_KEY_DIR"] == "/var/lib/watch-now"
+    assert service["volumes"][0]["type"] == "volume"
+    assert service["volumes"][0]["target"] == "/var/lib/watch-now"
+    assert not service["volumes"][0].get("read_only", False)
     assert ("build" in service) == ("compose.build.yaml" in files)
 
 test_env = dict(env, NOW_TEST_IMAGE="ghcr.io/jermzone/watch-now@sha256:" + "0" * 64,
@@ -86,11 +90,11 @@ assert qa_service["environment"]["NOW_DVR_MASTER_API_KEY_FILE"] == "/run/secrets
 assert "NOW_DVR_MASTER_API_KEY" not in qa_service["environment"]
 assert qa_service["read_only"] and "ALL" in qa_service["cap_drop"]
 assert "no-new-privileges:true" in qa_service["security_opt"]
-assert qa_service["environment"]["NOW_SHARE_KEY_FILE"] == "/run/secrets/watch_now_share_key"
+assert qa_service["environment"]["NOW_SHARE_KEY_DIR"] == "/var/lib/watch-now"
 assert "NOW_SHARE_KEY" not in qa_service["environment"]
-assert {secret["source"] for secret in qa_service["secrets"]} == {"watch_now_dvr_master_key", "watch_now_share_key"}
-assert qa_config["secrets"]["watch_now_share_key"]["file"].endswith("/secrets/share-key.txt")
-assert not qa_service.get("volumes")
+assert {secret["source"] for secret in qa_service["secrets"]} == {"watch_now_dvr_master_key"}
+assert qa_service["volumes"][0]["type"] == "volume"
+assert qa_service["volumes"][0]["target"] == "/var/lib/watch-now"
 missing_qa_env = dict(qa_env)
 missing_qa_env.pop("NOW_QA_IMAGE")
 assert subprocess.run(["docker", "compose", "-f", "compose.qa.yaml", "config", "--quiet"],

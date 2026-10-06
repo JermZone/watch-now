@@ -1,12 +1,13 @@
 services:
   watch-now:
-    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.3.0}
+    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.3.1}
     restart: unless-stopped
     ports:
       - "${NOW_HOST_BIND:-127.0.0.1}:${NOW_HOST_PORT:-9192}:8080"
     environment:
       DISPATCHARR_URL: ${DISPATCHARR_URL:?Set DISPATCHARR_URL to an address reachable from this container}
       NOW_SHARE_KEY: ${NOW_SHARE_KEY:-}
+      NOW_SHARE_KEY_DIR: /var/lib/watch-now
       NOW_DVR_MASTER_API_KEY: ${NOW_DVR_MASTER_API_KEY:-}
       NOW_PROGRAM_SEARCH_ENABLED: ${NOW_PROGRAM_SEARCH_ENABLED:-true}
       NOW_LISTEN_ADDRESS: ${NOW_LISTEN_ADDRESS:-:8080}
@@ -32,6 +33,8 @@ services:
       NOW_LOGIN_ACCOUNT_RATE_LIMIT: ${NOW_LOGIN_ACCOUNT_RATE_LIMIT:-30}
       NOW_LOGIN_RATE_PEERS: ${NOW_LOGIN_RATE_PEERS:-4096}
       NOW_DIAGNOSTIC_CACHE_TTL: ${NOW_DIAGNOSTIC_CACHE_TTL:-30s}
+    volumes:
+      - watch_now_share_data:/var/lib/watch-now
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -39,3 +42,6 @@ services:
       - ALL
     pids_limit: 100
     mem_limit: 256m
+
+volumes:
+  watch_now_share_data:

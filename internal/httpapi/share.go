@@ -91,7 +91,14 @@ func openShare(key []byte, token string) (shareTarget, error) {
 func (s *Server) handleShare(w http.ResponseWriter, r *http.Request) {
 	viewer := sessionFromContext(r.Context())
 	if r.Method == "GET" {
-		writeJSON(w, 200, map[string]bool{"enabled": len(s.cfg.ShareKey) == 32})
+		message := ""
+		if len(s.cfg.ShareKey) != 32 {
+			message = "Sharing is unavailable. Ask the server administrator to check sharing storage."
+		}
+		writeJSON(w, 200, struct {
+			Enabled bool   `json:"enabled"`
+			Message string `json:"message,omitempty"`
+		}{len(s.cfg.ShareKey) == 32, message})
 		return
 	}
 	if !s.validOrigin(r) || !validCSRF(r.Header.Get("X-CSRF-Token"), viewer.CSRFToken) {

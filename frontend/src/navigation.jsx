@@ -71,6 +71,7 @@ export default function NavigationRoot({ session, onExpired, children }) {
  const [link, setLink] = useState({ loading: window.location.hash.startsWith('#/s/'), error: '' });
  const [retry, setRetry] = useState(0);
  const [enabled, setEnabled] = useState(false);
+ const [shareMessage, setShareMessage] = useState('');
  const write = useCallback((value) => {
   current.current = cleanNavigation(value);
   try { sessionStorage.setItem(STORAGE, JSON.stringify({user, value:current.current})); } catch { /* optional */ }
@@ -139,7 +140,12 @@ export default function NavigationRoot({ session, onExpired, children }) {
  }, [generation, hash, write]);
  useEffect(() => {
   const controller = new AbortController();
-  getShareCapabilities({signal:controller.signal}).then(data => { if (!controller.signal.aborted) setEnabled(data.enabled === true); }).catch(() => {});
+  getShareCapabilities({signal:controller.signal}).then(data => {
+   if (!controller.signal.aborted) {
+    setEnabled(data.enabled === true);
+    setShareMessage(typeof data.message === 'string' ? data.message : '');
+   }
+  }).catch(() => {});
   return () => controller.abort();
  }, []);
  useEffect(() => {
@@ -162,7 +168,7 @@ export default function NavigationRoot({ session, onExpired, children }) {
   return () => controller.abort();
  }, [hash, retry, session.csrf_token, restore, user, onExpired]);
  const pending = hash.startsWith('#/s/');
- return <Sharing.Provider value={{enabled, session, onExpired}}>
+ return <Sharing.Provider value={{enabled, message:shareMessage, session, onExpired}}>
   {pending ? <main className="splash"><h1>Shared item</h1>{link.loading ? <p role="status">Opening shared item…</p> : <><p role="alert">{link.error}</p><button onClick={() => setRetry(n=>n+1)}>Retry</button><button onClick={() => { window.history.replaceState(null,'',window.location.pathname); setHash(''); setLink({loading:false,error:''}); }}>Continue browsing</button></>}</main>
    : <Navigation.Provider value={context.current}><div key={generation}>{children}</div></Navigation.Provider>}
  </Sharing.Provider>;

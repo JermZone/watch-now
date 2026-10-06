@@ -1,10 +1,52 @@
 # Watch Now release notes
 
-## 1.3.0 — Sharing, restored navigation and focused playback (prepared)
+## 1.3.1 — Automatic persistent sharing setup (prepared)
 
-The maintainer confirmed Docky QA acceptance and authorized publication on
-2026-10-06. Release CI and exact-image verification remain pending; use the
-published GitHub release and checksummed digest before production upgrade.
+The maintainer tested the new sharing build on Docky, confirmed it worked as
+expected, and authorized publication on 2026-10-06. Release CI and exact published
+image verification must complete before production upgrade.
+
+- The supplied Compose setup creates and retains a private sharing key
+  automatically. Fresh installations can use Share link without generating or
+  copying secrets.
+- A small named Docker volume retains only this key. Existing explicit
+  `NOW_SHARE_KEY` and `NOW_SHARE_KEY_FILE` settings take precedence and keep
+  existing links valid.
+- Unsafe, missing, unwritable or damaged automatic storage disables sharing while
+  playback stays available. Existing damaged keys are never silently replaced.
+- About shows sharing availability. Documentation covers custom stacks, backups
+  and deliberate migration of an existing key.
+- Package the private storage directory consistently across Docker builders, and
+  require hardened-container storage tests in both CI and release workflows.
+
+### Upgrade and validation
+
+After publication and verification, select `ghcr.io/jermzone/watch-now:1.3.1`
+or its exact digest. Use the complete release Compose example, or add its named
+volume and `NOW_SHARE_KEY_DIR` to your custom stack. Retain service names, ports,
+proxy/upstream settings and DVR mounts. Keep existing explicit sharing keys; do
+not remove an override until the same key is deliberately migrated. Keep and
+privately back up the volume: deleting it invalidates old links. See
+[sharing](docs/share-navigation.md) and [installation](docs/installation.md).
+
+The accepted QA image is `qa-auto-share-9300b7f`, revision
+`9300b7f29a6e7db2b10d4e496b7a7285d12c6f2c`. Its feature tree exactly matches GitHub
+commit `fe81b2685a5f838b96989deec141c45bfec4a8ce`. Evidence includes 211 frontend
+tests, Go tests/vet/race, audits, Compose checks, fresh/persistent/private/read-only/
+damaged storage tests and an independent QA image scan with zero HIGH/CRITICAL
+findings. Docky's existing key survived migration and recreation; the maintainer
+confirmed sharing worked. Release evidence is recorded separately after execution.
+
+No database, persistent sessions, catalog storage, transcoding or backend
+connection-accounting fix is added. Restart ends in-memory sessions. Retain the
+previous image/configuration for rollback. Linux AMD64, codec/device limits and
+deferred [issue #11](https://github.com/JermZone/watch-now/issues/11) remain.
+
+## 1.3.0 — Sharing, restored navigation and focused playback
+
+Published on 2026-10-06. See the
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.3.0)
+for verified distribution and stable-promotion evidence.
 
 - Share short encrypted links to Live TV channels, movies, selected episodes and
   completed DVR recordings. Recipients sign in with their own accounts and retain

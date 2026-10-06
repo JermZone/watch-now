@@ -1,8 +1,8 @@
-import { useSavedState, useNavigationSave, clearNavigation } from '../navigation';
+import { Sharing, useSavedState, useNavigationSave, clearNavigation } from '../navigation';
 import DVRSection, { airingTime, RecordButton, RecordDialog, useDVR } from './DVR';
 import Modal from './Modal';
 import LoadingIndicator from './LoadingIndicator';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 
 import { APIError, createLiveVLC, getCategories, getChannels, getEPG, getLiveSearchCapabilities, logout } from '../api';
@@ -52,6 +52,7 @@ const useDebouncedValue = (value, delay = 400) => {
 };
 
 const ViewerShell = ({ session, onExpired }) => {
+  const sharing = useContext(Sharing);
   const saveNavigation = useNavigationSave();
   const [sharedRecording, setSharedRecording] = useSavedState('sharedRecording', false);
   const [sharedChannel, setSharedChannel] = useSavedState('sharedChannel', false);
@@ -470,7 +471,7 @@ const ViewerShell = ({ session, onExpired }) => {
           </>}
       </div>
       {liveDetailsOpen && <Modal labelledBy="live-playback-details-heading" onClose={() => setLiveDetailsOpen(false)}><h2 id="live-playback-details-heading">Playback details</h2><ProgramGuide guide={guideState.guide} loading={guideState.loading} error={guideState.error} now={now} onRetry={() => setGuideRetry(v => v + 1)} /><button onClick={() => setLiveDetailsOpen(false)} type="button">Close</button></Modal>}
-      {aboutOpen && <Modal labelledBy="about-title" onClose={() => setAboutOpen(false)} returnFocusRef={menuButtonRef}><h2 id="about-title">Watch Now</h2><p>Version {__APP_VERSION__}</p><p>A web player for Dispatcharr.</p><p>An independent, open-source project. Not affiliated with or endorsed by Dispatcharr or VideoLAN.</p><p><a href={__APP_SOURCE__} target="_blank" rel="noopener noreferrer">Source code and support</a> · <a href="https://github.com/JermZone/watch-now/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPLv3 license</a></p><button onClick={() => setAboutOpen(false)} type="button">Close</button></Modal>}
+      {aboutOpen && <Modal labelledBy="about-title" onClose={() => setAboutOpen(false)} returnFocusRef={menuButtonRef}><h2 id="about-title">Watch Now</h2><p>Version {__APP_VERSION__}</p><p>A web player for Dispatcharr.</p>{sharing && (sharing.enabled ? <p>Sharing is ready.</p> : sharing.message && <p>{sharing.message}</p>)}<p>An independent, open-source project. Not affiliated with or endorsed by Dispatcharr or VideoLAN.</p><p><a href={__APP_SOURCE__} target="_blank" rel="noopener noreferrer">Source code and support</a> · <a href="https://github.com/JermZone/watch-now/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPLv3 license</a></p><button onClick={() => setAboutOpen(false)} type="button">Close</button></Modal>}
     </main>
   );
 };

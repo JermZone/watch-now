@@ -10,6 +10,7 @@ vi.mock('./NativeVideoPlayer', () => ({
 }));
 
 import ViewerShell, { PHONE_LAYOUT_QUERY } from './ViewerShell';
+import { Sharing } from '../navigation';
 
 const jsonResponse = (body, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), {
@@ -102,6 +103,18 @@ afterEach(() => {
 });
 
 describe('ViewerShell header menu', () => {
+  it.each([
+    [{ enabled: true }, 'Sharing is ready.'],
+    [{ enabled: false, message: 'Sharing is unavailable. Ask the server administrator to check sharing storage.' }, 'Sharing is unavailable. Ask the server administrator to check sharing storage.'],
+  ])('shows sharing availability in About', async (sharing, message) => {
+    installLayoutMedia(false);
+    installViewerAPI(true);
+    const user = userEvent.setup();
+    render(<Sharing.Provider value={sharing}><ViewerShell onExpired={vi.fn()} session={{ user: { username: 'viewer' }, csrf_token: 'csrf-token' }} /></Sharing.Provider>);
+    await user.click(screen.getByRole('button', { name: /Open menu, current section/ }));
+    await user.click(screen.getByRole('button', { name: 'About' }));
+    expect(within(screen.getByRole('dialog', { name: 'Watch Now' })).getByText(message)).toBeInTheDocument();
+  });
   it('offers a blue default and remembers a green appearance choice on this device', async () => {
     installLayoutMedia(false);
     installViewerAPI(true);

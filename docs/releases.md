@@ -1,14 +1,14 @@
 # Maintainer release procedure
 
-Version **1.3.0 is prepared but not published** for sharing, navigation restoration
-and focused playback. The maintainer confirmed Docky QA and authorized GitHub
-publication on 2026-10-06; Nebula deployment remains their separate update after
-image verification. See [1.3.0 preparation](release-readiness-1.3.0.md).
+Version **1.3.1 is prepared** for automatic persistent sharing setup. The
+maintainer confirmed the new Docky sharing QA and authorized GitHub publication
+on 2026-10-06. Nebula deployment remains their separate update after image
+verification. See [1.3.1 preparation](release-readiness-1.3.1.md).
 
-Watch Now **1.2.1 is published**. Its
-[release record](https://github.com/JermZone/watch-now/releases/tag/v1.2.1) contains
-distribution and stable-promotion evidence. Earlier preparation records remain
-historical; metadata alone does not establish image availability.
+Watch Now **1.3.0 is published**. Its
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.3.0) contains
+verified distribution and stable-promotion evidence. Earlier preparation records
+remain historical; metadata alone does not establish image availability.
 
 Published tags, images, and assets are immutable. Do not replace a version to fix
 it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untouched.
