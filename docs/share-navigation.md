@@ -103,5 +103,5 @@ so its Live TV geometry cases were skipped. The maintainer's QA confirmation is
 separate from these automated results and does not specify a complete device matrix.
 
 Release CI and exact published-image checks must pass before production upgrade.
-See [QA checklist](share-navigation-qa.md) and
-[release preparation](release-readiness-1.3.0.md).
+See the [QA checklist](https://github.com/JermZone/watch-now/blob/v1.3.0/docs/share-navigation-qa.md)
+and [release preparation](https://github.com/JermZone/watch-now/blob/v1.3.0/docs/release-readiness-1.3.0.md).

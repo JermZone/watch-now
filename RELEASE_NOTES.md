@@ -15,6 +15,8 @@ published GitHub release and checksummed digest before production upgrade.
   Details open separately; Stop restores the selected item. Live TV can return to
   browsing and focus again while retaining the running stream.
 - Show channel logos or initials on ordinary and shared DVR cards.
+- Include the separately reviewed source-map-js 1.2.2 security patch for the
+  transitive build dependency (GHSA-68fv-2mgg-jv7q).
 
 ### Upgrade and limits
 

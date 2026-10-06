@@ -11,8 +11,11 @@ publication. Nebula deployment remains the maintainer's separate image update.
 - Adds encrypted share links, per-tab navigation restoration, focused playback
   across Live TV/Movies/Series/DVR and DVR logos.
 - Release preparation changes metadata, public documentation and install packaging.
-  Application code matches the accepted QA source. No dependency upgrades or
-  backend session/media/connection-accounting fixes are added.
+  Application code matches the accepted QA source. No backend session/media/
+  connection-accounting fixes are added.
+- Separate security PR #29 patches the transitive build dependency source-map-js
+  from 1.2.1 to 1.2.2 after release CI reported GHSA-68fv-2mgg-jv7q. This prerequisite
+  receives its own CI and review before release.
 
 Retained feature evidence includes 209 frontend tests, Go tests/vet, builds,
 Compose checks and 96 synthetic playback layout cases. The maintainer confirmed
