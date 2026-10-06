@@ -56,6 +56,8 @@ jobs:
             VERSION=${{ env.VERSION }}
             REVISION=${{ github.sha }}
             SOURCE_URL=https://github.com/JermZone/watch-now/tree/${{ github.ref_name }}
+      - name: Verify persistent sharing storage
+        run: python3 scripts/test-sharing-storage.py watch-now:candidate
       - name: Scan candidate before publication
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
         with:

@@ -3,12 +3,16 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/JermZone/watch-now/internal/config"
 )
 
 func TestShareEncryption(t *testing.T) {
@@ -54,6 +58,43 @@ func TestShareEncryption(t *testing.T) {
 		if _, err := sealShare(key, target); err == nil {
 			t.Fatal("invalid target accepted")
 		}
+	}
+}
+
+func TestAutomaticSharingSurvivesServerRecreation(t *testing.T) {
+	dir := t.TempDir()
+	os.Chmod(dir, 0700)
+	t.Setenv("DISPATCHARR_URL", "http://dispatcharr.test")
+	t.Setenv("NOW_SHARE_KEY", "")
+	t.Setenv("NOW_SHARE_KEY_FILE", "")
+	t.Setenv("NOW_SHARE_KEY_DIR", dir)
+	first, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var logs bytes.Buffer
+	h := New(first, liveVLCFake(), slog.New(slog.NewTextHandler(&logs, nil)))
+	cookie, viewer := loginViewer(t, h)
+	w := shareRequest(h, cookie, viewer.CSRFToken, "/api/share", shareTarget{"live", "41", ""})
+	if w.Code != 201 {
+		t.Fatal("automatic sharing unavailable", w.Code)
+	}
+	var created struct {
+		Token string `json:"token"`
+	}
+	json.Unmarshal(w.Body.Bytes(), &created)
+	second, err := config.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	h = New(second, liveVLCFake(), slog.New(slog.NewTextHandler(&logs, nil)))
+	cookie, viewer = loginViewer(t, h)
+	w = shareRequest(h, cookie, viewer.CSRFToken, "/api/share/resolve", map[string]string{"token": created.Token})
+	if w.Code != 200 {
+		t.Fatal("existing link did not survive recreation", w.Code)
+	}
+	if strings.Contains(logs.String(), created.Token) || strings.Contains(logs.String(), fmt.Sprintf("%x", first.ShareKey)) {
+		t.Fatal("sharing secret leaked")
 	}
 }
 func shareRequest(h http.Handler, cookie *http.Cookie, csrf, path string, body any) *httptest.ResponseRecorder {

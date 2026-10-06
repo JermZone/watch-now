@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -24,35 +25,36 @@ const (
 )
 
 type Config struct {
-	ShareKey              []byte            `json:"-"`
-	DVRAPIKeys            map[string]string `json:"-"`
-	DVRMasterAPIKey       string            `json:"-"`
-	ProgramSearchEnabled  bool
-	ListenAddress         string
-	DispatcharrURL        *url.URL
-	WebRoot               string
-	CookieSecure          string
-	TrustProxyHeaders     bool
-	SessionIdleTimeout    time.Duration
-	SessionAbsoluteTTL    time.Duration
-	SessionLimit          int
-	UpstreamTimeout       time.Duration
-	UpstreamMaxBytes      int64
-	ArtworkMaxBytes       int64
-	CacheEntries          int
-	CacheMaxBytes         int64
-	CategoryCacheTTL      time.Duration
-	ChannelCacheTTL       time.Duration
-	EPGCacheTTL           time.Duration
-	ArtworkCacheTTL       time.Duration
-	CatalogCacheTTL       time.Duration
-	DetailCacheTTL        time.Duration
-	DiagnosticCacheTTL    time.Duration
-	VLCSessionLimit       int
-	LoginAccountRateLimit int
-	LoginRateLimit        int
-	LoginRateWindow       time.Duration
-	LoginRateLimitPeers   int
+	ShareKey                []byte            `json:"-"`
+	ShareStorageUnavailable bool              `json:"-"`
+	DVRAPIKeys              map[string]string `json:"-"`
+	DVRMasterAPIKey         string            `json:"-"`
+	ProgramSearchEnabled    bool
+	ListenAddress           string
+	DispatcharrURL          *url.URL
+	WebRoot                 string
+	CookieSecure            string
+	TrustProxyHeaders       bool
+	SessionIdleTimeout      time.Duration
+	SessionAbsoluteTTL      time.Duration
+	SessionLimit            int
+	UpstreamTimeout         time.Duration
+	UpstreamMaxBytes        int64
+	ArtworkMaxBytes         int64
+	CacheEntries            int
+	CacheMaxBytes           int64
+	CategoryCacheTTL        time.Duration
+	ChannelCacheTTL         time.Duration
+	EPGCacheTTL             time.Duration
+	ArtworkCacheTTL         time.Duration
+	CatalogCacheTTL         time.Duration
+	DetailCacheTTL          time.Duration
+	DiagnosticCacheTTL      time.Duration
+	VLCSessionLimit         int
+	LoginAccountRateLimit   int
+	LoginRateLimit          int
+	LoginRateWindow         time.Duration
+	LoginRateLimitPeers     int
 }
 
 func Load() (Config, error) {
@@ -136,6 +138,10 @@ func Load() (Config, error) {
 		return Config{}, fmt.Errorf("configure either a DVR master key or per-user keys, not both")
 	}
 	cfg.ShareKey, err = loadShareKey()
+	if errors.Is(err, errShareStorage) {
+		cfg.ShareStorageUnavailable = true
+		err = nil
+	}
 	if err != nil {
 		return Config{}, err
 	}

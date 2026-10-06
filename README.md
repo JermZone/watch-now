@@ -23,7 +23,7 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 - Open **Guide** beside Browse/Search for Grid or List, with date navigation up to seven days where listings are available. See [TV Guide](docs/tv-guide.md).
 - Browse Movies and Series, watch supported formats in the browser, or use VLC and downloads.
 - Connect a personal Dispatcharr API key or configure a server-side key to browse DVR, schedule one-time recordings, and watch/download completed recordings. See [DVR setup and limits](docs/dvr.md).
-- Share authorized channels, movies, episodes and recordings, restore navigation on refresh, and use focused playback views. See [sharing configuration](docs/share-navigation.md).
+- Share authorized channels, movies, episodes and recordings, restore navigation on refresh, and use focused playback views. The supplied Compose setup retains the sharing key automatically; see [sharing configuration](docs/share-navigation.md).
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder.
 

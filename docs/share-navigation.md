@@ -17,32 +17,58 @@ past airing. There is no automatic playback or saved playback position.
 
 ## Server configuration
 
-Generate a dedicated random key once:
+The supplied Compose files enable sharing automatically. Start the stack, sign in,
+and choose **Share link** from an item's Watch menu. No key-generation command or
+secret copying is needed. About shows whether sharing is ready.
 
-```sh
-openssl rand -hex 32
-```
+A small named Docker volume at `/var/lib/watch-now` retains a randomly generated
+32-byte key in `share-key`. The key is created once with private permissions and
+reused on subsequent starts. Only the sharing key is persistent; sessions, viewer
+credentials, catalogs and playback remain in memory. Keep and back up this volume
+privately across upgrades. Removing it (including `docker compose down -v`) loses
+the key and invalidates existing links. A normal `docker compose down` retains it.
 
-Keep it private and set `NOW_SHARE_KEY` in the provided Compose environment, or
-mount a file containing just the hexadecimal key read-only and configure
-`NOW_SHARE_KEY_FILE` with its container path. Use one source only. The non-root
-container user (UID 65532) must be able to read the mounted file. For example,
-add to the existing service (the host file must already exist):
+For an existing custom Compose stack, add these entries to your existing service
+and the top-level volume declaration (requires an image containing this feature):
 
 ```yaml
-environment:
-  NOW_SHARE_KEY: ""
-  NOW_SHARE_KEY_FILE: /run/secrets/watch_now_share_key
+services:
+  watch-now:
+    environment:
+      NOW_SHARE_KEY_DIR: /var/lib/watch-now
+    volumes:
+      - watch_now_share_data:/var/lib/watch-now
 volumes:
-  - ./secrets/share-key.txt:/run/secrets/watch_now_share_key:ro
+  watch_now_share_data:
 ```
 
-Keep the host secret directory private. Do not commit the key. Retain the same key
-across recreations; changing it invalidates every old link. There is no per-link
-revocation list or link database. Removing configuration disables creation and
-resolution. Do not copy a development key into QA or production. An environment
-key is visible to administrators inspecting the container; use a mounted file to
-keep it out of environment metadata.
+Retain your other settings and `read_only: true`. New Docker named volumes inherit
+the image directory's UID 65532 ownership and mode 0700. Do not mount an arbitrary
+host folder without setting equivalent private permissions. `NOW_SHARE_KEY_DIR`
+opts into automatic storage: always point it at a persistent mount, never at an
+ephemeral container folder. Direct image runs without this setting leave sharing
+disabled unless an explicit key is supplied.
+
+Existing `NOW_SHARE_KEY` and `NOW_SHARE_KEY_FILE` settings take precedence over
+automatic storage. Keep your existing setting to preserve old links; adding a
+volume does not copy or replace that explicit key. To migrate deliberately, stop
+only Watch Now, securely place the same hexadecimal key in the volume's `share-key`
+file (owned by UID 65532, mode 0600), and then remove the explicit setting. Keep a
+private backup and verify an existing link before discarding the old file. Do not
+reuse a development key in an unrelated installation.
+
+Manual keys remain supported: generate 32 random bytes as 64 hexadecimal characters
+and set `NOW_SHARE_KEY`, or mount a file read-only and set `NOW_SHARE_KEY_FILE` to
+its container path. Use only one explicit source. The container user must be able
+to read the file. Invalid explicit keys remain a startup error. Environment keys
+are visible to administrators inspecting the container; a mounted file avoids that.
+
+If automatic storage is missing, unwritable, unsafe or damaged, playback remains
+available and sharing is disabled with a startup warning and an About message.
+An existing damaged key is never silently replaced. Repair permissions or restore
+the same key from backup, then recreate Watch Now. Never post the key in logs or
+support reports. There is no per-link revocation list or link database. To disable
+sharing completely, remove both the automatic directory setting and explicit keys.
 
 Tokens use Go's standard-library AES-256-GCM with random 96-bit nonces and full
 128-bit authentication tags, purpose-bound to a versioned Watch Now payload. The

@@ -13,6 +13,7 @@ RUN npm run build
 
 FROM golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS server-builder
 RUN apk add --no-cache ca-certificates
+RUN mkdir -p /out/share-data && chown 65532:65532 /out/share-data && chmod 0700 /out/share-data
 WORKDIR /src
 COPY go.mod ./
 COPY cmd/ ./cmd/
@@ -44,6 +45,7 @@ COPY --from=frontend-builder /src/frontend/node_modules/events/LICENSE /licenses
 COPY --from=frontend-builder /src/frontend/node_modules/scheduler/LICENSE /licenses/scheduler.txt
 COPY --from=server-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=server-builder /out/watch-now /watch-now
+COPY --from=server-builder --chown=65532:65532 --chmod=0700 /out/share-data /var/lib/watch-now
 COPY --from=frontend-builder /src/frontend/dist /web
 USER 65532:65532
 EXPOSE 8080

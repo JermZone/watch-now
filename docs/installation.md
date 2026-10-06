@@ -13,9 +13,10 @@ the historical `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta, not
 this version's Compose files. Existing deployments should first read
 [Migration](migration.md).
 
-Sharing is optional and disabled without a server key. To enable it, configure a
-dedicated persistent key as described in [Sharing](share-navigation.md). Keep the
-same key across upgrades; recipients still need their own authorized account.
+Sharing works automatically with the supplied Compose persistent volume. Keep that
+volume across upgrades so existing links continue to work. Existing manual keys
+remain supported. See [Sharing](share-navigation.md) for custom stacks and migration;
+recipients still need their own authorized account.
 
 ## Before starting
 
