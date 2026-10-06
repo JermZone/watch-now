@@ -116,6 +116,19 @@ containment does not change supported codecs or add transcoding.
 
 ## Validation and rollout
 
+For automatic sharing setup, the maintainer tested Docky build `1.3.1-qa`, revision
+`9300b7f29a6e7db2b10d4e496b7a7285d12c6f2c`, and confirmed sharing worked as expected
+on 2026-10-06. The tested feature tree matches GitHub commit
+`fe81b2685a5f838b96989deec141c45bfec4a8ce`. Tests cover key reuse under concurrent
+starts, existing overrides, damaged/unsafe storage, token resolution after server
+recreation and hardened Docker storage behavior. All 211 frontend tests and
+required GitHub CI passed. Docky's existing key was deliberately retained and
+verified across recreation. No fresh full-device playback matrix is inferred.
+See [1.3.1 preparation](release-readiness-1.3.1.md) for publication gates.
+
+The following retained evidence describes the earlier v1.3.0 sharing/navigation
+and playback rollout:
+
 The maintainer confirmed Docky QA acceptance and authorized GitHub publication
 on 2026-10-06. The accepted QA revision is
 `0165850e354a617decb5bbf5327c33e6a8393fca`; its source tree matches feature commit
