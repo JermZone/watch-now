@@ -86,7 +86,11 @@ assert qa_service["environment"]["NOW_DVR_MASTER_API_KEY_FILE"] == "/run/secrets
 assert "NOW_DVR_MASTER_API_KEY" not in qa_service["environment"]
 assert qa_service["read_only"] and "ALL" in qa_service["cap_drop"]
 assert "no-new-privileges:true" in qa_service["security_opt"]
-assert len(qa_service["secrets"]) == 1 and not qa_service.get("volumes")
+assert qa_service["environment"]["NOW_SHARE_KEY_FILE"] == "/run/secrets/watch_now_share_key"
+assert "NOW_SHARE_KEY" not in qa_service["environment"]
+assert {secret["source"] for secret in qa_service["secrets"]} == {"watch_now_dvr_master_key", "watch_now_share_key"}
+assert qa_config["secrets"]["watch_now_share_key"]["file"].endswith("/secrets/share-key.txt")
+assert not qa_service.get("volumes")
 missing_qa_env = dict(qa_env)
 missing_qa_env.pop("NOW_QA_IMAGE")
 assert subprocess.run(["docker", "compose", "-f", "compose.qa.yaml", "config", "--quiet"],

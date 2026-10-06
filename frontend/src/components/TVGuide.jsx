@@ -1,3 +1,4 @@
+import { useSavedState } from '../navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { APIError, getTVGuide } from '../api';
 import Modal from './Modal';
@@ -70,10 +71,10 @@ export function currentTitleStart(rows, day, now) {
 }
 
 export default function TVGuide({ active, suspended = false, categories, channels, isMobile, onExpired, onWatch, onRecord, channelID, onChannelChange }) {
-  const [listStart, setStart] = useState(currentWindow);
-  const [gridDay, setGridDay] = useState(() => midnight(Date.now()));
-  const [sliderStart, setSliderStart] = useState(currentWindow);
-  const [categoryID, setCategoryID] = useState('');
+  const [listStart, setStart] = useSavedState('guideStart', currentWindow);
+  const [gridDay, setGridDay] = useSavedState('guideDay', () => midnight(Date.now()));
+  const [sliderStart, setSliderStart] = useState(listStart);
+  const [categoryID, setCategoryID] = useSavedState('guideCategory', '');
   const [layout, setLayout] = useState(() => { try { return localStorage.getItem('watch-now-guide-layout') === 'agenda' ? 'agenda' : 'grid'; } catch { return 'grid'; } });
   const [state, setState] = useState(empty);
   const [retry, setRetry] = useState(0);

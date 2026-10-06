@@ -38,6 +38,8 @@ type contextKey string
 const sessionContextKey contextKey = "viewer-session"
 
 type Server struct {
+	shareRequests  chan struct{}
+	shareLimiter   *ratelimit.Limiter
 	dvrRequests    chan struct{}
 	dvrWrites      chan struct{}
 	dvrLimiter     *ratelimit.Limiter
@@ -85,6 +87,8 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 		accountLimit = 30
 	}
 	server := &Server{
+		shareRequests:  make(chan struct{}, 4),
+		shareLimiter:   ratelimit.New(60, time.Minute, cfg.SessionLimit),
 		dvrRequests:    make(chan struct{}, 8),
 		dvrWrites:      make(chan struct{}, 1),
 		dvrLimiter:     ratelimit.New(30, time.Minute, cfg.SessionLimit),
@@ -106,6 +110,9 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
+	for _, pattern := range []string{"GET /api/share", "POST /api/share", "POST /api/share/resolve"} {
+		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleShare)))
+	}
 	mux.Handle("GET /api/live/guide", s.requireSession(http.HandlerFunc(s.handleTVGuide)))
 	for _, pattern := range []string{"GET /api/dvr/connection", "POST /api/dvr/connection", "DELETE /api/dvr/connection", "GET /api/dvr/recordings", "POST /api/dvr/recordings", "DELETE /api/dvr/recordings/{recording_id}", "POST /api/dvr/recordings/{recording_id}/{action}", "GET /api/dvr/recordings/{recording_id}/{resource}"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleDVR)))

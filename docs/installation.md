@@ -2,16 +2,20 @@
 
 [Back to Watch Now](../README.md)
 
-**Source version: `1.2.0`.** Use **Docker image / Portainer** only when
+**Source version: `1.3.0`.** Use **Docker image / Portainer** only when
 [GitHub Releases](https://github.com/JermZone/watch-now/releases) supplies a
 published version and verified image digest for `ghcr.io/jermzone/watch-now`.
 If the desired release is not available yet, use **Source testing** below.
 The version in the example files is not itself an availability announcement.
 
-For the unchanged earlier beta, use the files at its
+For the unchanged earlier beta, use the files for
 the historical `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta, not
 this version's Compose files. Existing deployments should first read
 [Migration](migration.md).
+
+Sharing is optional and disabled without a server key. To enable it, configure a
+dedicated persistent key as described in [Sharing](share-navigation.md). Keep the
+same key across upgrades; recipients still need their own authorized account.
 
 ## Before starting
 

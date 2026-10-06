@@ -23,6 +23,7 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 - Open **Guide** beside Browse/Search for Grid or List, with date navigation up to seven days where listings are available. See [TV Guide](docs/tv-guide.md).
 - Browse Movies and Series, watch supported formats in the browser, or use VLC and downloads.
 - Connect a personal Dispatcharr API key or configure a server-side key to browse DVR, schedule one-time recordings, and watch/download completed recordings. See [DVR setup and limits](docs/dvr.md).
+- Share authorized channels, movies, episodes and recordings, restore navigation on refresh, and use focused playback views. See [sharing configuration](docs/share-navigation.md).
 - Follow the viewer permissions supplied by Dispatcharr, with sessions kept in memory.
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder.
 
@@ -39,16 +40,15 @@ separate from Watch Now and are not collected by the application.
 
 ## Releases
 
-**1.2.1 is being prepared** with desktop viewport scrolling, improved Guide player
-sizing, and automatic Grid loading up to 500 channels per batch. The source Compose
-defaults target 1.2.1; use the published 1.2.0 image until 1.2.1 distribution is
-verified. See [release notes](RELEASE_NOTES.md).
+**1.3.0 is prepared** with private share links, restored navigation and focused
+playback across Live TV, Movies, Series and DVR. The maintainer confirmed QA
+acceptance on 2026-10-06. Publication and exact-image verification remain pending;
+use the [published release](https://github.com/JermZone/watch-now/releases) and its
+checksummed image digest before upgrading. See [release notes](RELEASE_NOTES.md).
 
-**Watch Now 1.2.0 is published**, adding DVR and an expanded TV Guide.
-See the [1.2.0 release](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
-for release notes, checksums, and the verified image digest. Use
-`ghcr.io/jermzone/watch-now:1.2.0` or pin that digest. Stable `latest` was verified
-against the same image when 1.2.0 was promoted; it can advance with later releases.
+**Watch Now 1.2.1 is published**, including desktop scrolling and automatic Guide
+loading. See the [1.2.1 release](https://github.com/JermZone/watch-now/releases/tag/v1.2.1)
+for its verified image digest. Stable `latest` can advance with later releases.
 
 Each release includes a `watch-now-<version>-install.zip` containing Compose,
 `.env.example`, installation and feature guides, README, and license. DVR is

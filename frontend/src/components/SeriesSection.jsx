@@ -1,3 +1,4 @@
+import { useSavedState, useNavigationInitial } from '../navigation';
 import LoadingIndicator from './LoadingIndicator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -8,6 +9,7 @@ import {
 import CategoryBrowser, { BrowseHeader } from './CategoryBrowser';
 import VideoDetails from './VideoDetails.jsx';
 import DetailLoadingStatus from './DetailLoadingStatus';
+import PlaybackStage from './PlaybackStage';
 import NativeVideoPlayer from './NativeVideoPlayer';
 import Pagination from './Pagination';
 import PosterArtwork from './PosterArtwork';
@@ -65,12 +67,16 @@ const SeriesSection = ({
 }) => {
   const showingCategories = !search.trim() && browseSelection === null;
   const [categoryState, setCategoryState] = useState({ loading: !Array.isArray(categories), error: '', retry: 0 });
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useSavedState('seriesPage', 1);
   const [retry, setRetry] = useState(0);
   const [catalog, setCatalog] = useState({ items: [], total: 0, loading: false, error: '' });
+  const [sharedEpisode, setSharedEpisode] = useSavedState('sharedEpisode', false);
+  const [savedID, setSavedID] = useSavedState('seriesID', '');
+  const [savedEpisode, setSavedEpisode] = useSavedState('episodeID', '');
+  const initialSelection = useRef({id:savedID,episode:savedEpisode,season:useNavigationInitial('season')});
   const [selected, setSelected] = useState(null);
   const [detailState, setDetailState] = useState({ detail: null, loading: false, error: '' });
-  const [selectedSeason, setSelectedSeason] = useState('');
+  const [selectedSeason, setSelectedSeason] = useSavedState('season', '');
   const [selectedEpisode, setSelectedEpisode] = useState(null);
   const [playing, setPlaying] = useState(false);
   const [playbackError, setPlaybackError] = useState('');
@@ -95,6 +101,9 @@ const SeriesSection = ({
     detailControllerRef.current = null;
     detailRequestRef.current += 1;
     vlcRequestRef.current += 1;
+    setSharedEpisode(false);
+    setSavedID('');
+    setSavedEpisode('');
     setSelected(null);
     setDetailState({ detail: null, loading: false, error: '' });
     setSelectedSeason('');
@@ -131,7 +140,7 @@ const SeriesSection = ({
     closeDetail();
   }, [closeDetail, contextKey]);
 
-  const browseActive = Boolean(search.trim() || browseSelection);
+  const browseActive = !sharedEpisode && Boolean(search.trim() || browseSelection);
   useEffect(() => {
     if (!browseActive) {
       setCatalog({ items: [], total: 0, loading: false, error: '' });
@@ -165,7 +174,7 @@ const SeriesSection = ({
     vlcRequestRef.current += 1;
   }, []);
 
-  const loadDetail = useCallback((item) => {
+  const loadDetail = useCallback((item, restore = null) => {
     detailControllerRef.current?.abort();
     const requestID = ++detailRequestRef.current;
     const controller = new AbortController();
@@ -176,8 +185,10 @@ const SeriesSection = ({
       const next = detail && typeof detail === 'object' ? detail : item;
 		const groups = groupSeriesSeasons(next);
 		setDetailState({ detail: next, loading: false, error: '' });
-		setSelectedSeason(groups.find((group) => group.episodes.length > 0)?.key || groups[0]?.key || '');
-      setSelectedEpisode(null);
+		const restoredGroup = restore?.episode ? groups.find(g => g.episodes.some(e => e.id === restore.episode)) : groups.find(g => g.key === restore?.season);
+      setSelectedSeason(restoredGroup?.key || groups.find((group) => group.episodes.length > 0)?.key || groups[0]?.key || '');
+      setSelectedEpisode(restoredGroup?.episodes.find(e => e.id === restore?.episode) || null);
+      if (restore?.episode && !restoredGroup) setPlaybackError('This episode is no longer available.');
       const reveal = () => detailsRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
       if (window.requestAnimationFrame) window.requestAnimationFrame(reveal);
       else reveal();
@@ -190,18 +201,25 @@ const SeriesSection = ({
 
   const selectSeries = (item) => {
     vlcRequestRef.current += 1;
+    setSavedID(item.id);
+    setSavedEpisode('');
     setSelected(item);
     setPlaying(false);
     setPlaybackError('');
     setVlcState({ loading: false, error: '', ready: false, title: '' });
     loadDetail(item);
   };
+  useEffect(() => {
+    const restore = initialSelection.current;
+    if (restore?.id) { setSelected({id:restore.id}); loadDetail({id:restore.id}, restore); initialSelection.current = null; }
+  }, []);
   const groups = useMemo(() => groupSeriesSeasons(detailState.detail), [detailState.detail]);
   const hasEpisodes = groups.some((group) => group.episodes.length > 0);
   const activeGroup = groups.find((group) => group.key === selectedSeason);
   const selectSeason = (value) => {
     vlcRequestRef.current += 1;
     setSelectedSeason(value);
+    setSavedEpisode('');
     setSelectedEpisode(null);
     setPlaying(false);
     setPlaybackError('');
@@ -209,6 +227,7 @@ const SeriesSection = ({
   };
   const selectEpisode = (episode) => {
     vlcRequestRef.current += 1;
+    setSavedEpisode(episode.id);
     setSelectedEpisode(episode);
     setPlaying(false);
     setPlaybackError('');
@@ -247,11 +266,15 @@ const SeriesSection = ({
   const fatalPlayback = useCallback((message) => { setPlaying(false); setPlaybackError(message); }, []);
   const detail = detailState.detail || selected;
 
+  if (playing && selectedEpisode) return <PlaybackStage title={`${titleFor(detail)} — ${episodeTitle(selectedEpisode)}`} backLabel="Back to episode details" onBack={stop} onStop={stop} details={<><p>{activeGroup?.label} · Episode {selectedEpisode.episode_number}</p><VideoDetails streamInfo={selectedEpisode.stream_info} /><p>{episodeMeta(selectedEpisode)}</p><p>{descriptionFor(selectedEpisode)}</p><p>{descriptionFor(detail)}</p></>}>
+    <NativeVideoPlayer contained label="Episode" onFatalError={fatalPlayback} source={episodeStreamURL(selected.id, selectedEpisode.id)} />
+  </PlaybackStage>;
+
   return (
     <section className="media-section" aria-labelledby="series-heading">
       <h2 className="sr-only" id="series-heading">Series</h2>
       {selected ? <div className="media-detail-view" ref={detailsRef}>
-        <button className="back-button" onClick={closeDetail} type="button">← {search.trim() ? 'Back to search results' : 'Back to Series'}</button>
+        <button className="back-button" onClick={sharedEpisode ? () => setSharedEpisode(false) : closeDetail} type="button">← {sharedEpisode ? 'Back to all show details' : search.trim() ? 'Back to search results' : 'Back to Series'}</button>
         {vlcState.ready ? <VLCPlaylistHandoff error={vlcState.error} loading={vlcState.loading} onBack={closeVLCHandoff} onRetry={openInVLC} title={vlcState.title} /> :
         <article className="media-detail series-detail" aria-label={`Selected series: ${titleFor(detail)}`}>
           <div className="detail-poster"><PosterArtwork label={titleFor(detail)} source={detail?.has_artwork ? seriesArtworkURL(selected.id) : ''} /></div>
@@ -261,20 +284,21 @@ const SeriesSection = ({
             {detail?.genre && <p className="media-genre">{detail.genre}</p>}
             {descriptionFor(detail) && <p className="media-description">{descriptionFor(detail)}</p>}
             {detailState.loading ? <DetailLoadingStatus key={selected.id} label="Loading series details…" />
-              : detailState.error ? <div className="panel-error" role="alert"><p>{detailState.error}</p><button onClick={() => loadDetail(selected)} type="button">Retry details</button></div>
-                : !hasEpisodes ? <div className="episode-empty"><p>No episodes are currently available for this series.</p><button className="quiet-button" onClick={() => loadDetail(selected)} type="button">Retry episodes</button></div>
+              : detailState.error ? <div className="panel-error" role="alert"><p>{detailState.error}</p><button onClick={() => loadDetail(selected, {episode:savedEpisode,season:selectedSeason})} type="button">Retry details</button></div>
+                : !hasEpisodes ? <div className="episode-empty"><p>No episodes are currently available for this series.</p><button className="quiet-button" onClick={() => loadDetail(selected, {episode:savedEpisode,season:selectedSeason})} type="button">Retry episodes</button></div>
                   : <div className="episode-browser">
-                    <label>Season<select aria-label="Season" onChange={(event) => selectSeason(event.currentTarget.value)} value={selectedSeason}>{groups.map((group) => <option key={group.key} value={group.key}>{group.label}</option>)}</select></label>
-                    <div className="episode-list">{activeGroup?.episodes.map((episode) => {
+                    {sharedEpisode && !selectedEpisode && <p role="alert">This episode is no longer available.</p>}
+                    {!sharedEpisode && <label>Season<select aria-label="Season" onChange={(event) => selectSeason(event.currentTarget.value)} value={selectedSeason}>{groups.map((group) => <option key={group.key} value={group.key}>{group.label}</option>)}</select></label>}
+                    <div className="episode-list">{(sharedEpisode ? (selectedEpisode ? [selectedEpisode] : []) : activeGroup?.episodes)?.map((episode) => {
                       const active = selectedEpisode?.id === episode.id;
                       const number = integerOrNull(episode.episode_number) !== null ? `Episode ${integerOrNull(episode.episode_number)} · ` : '';
                       return <div className="episode-entry" key={episode.id}>
-                        <button aria-pressed={active} className={active ? 'is-selected' : ''} onClick={() => selectEpisode(episode)} type="button"><strong>{number}{episodeTitle(episode)}</strong>{episode.air_date && <small>{episode.air_date}</small>}</button>
+                        {!sharedEpisode && <button aria-pressed={active} className={active ? 'is-selected' : ''} onClick={() => selectEpisode(episode)} type="button"><strong>{number}{episodeTitle(episode)}</strong>{episode.air_date && <small>{episode.air_date}</small>}</button>}
                         {active && <div className="episode-actions" aria-label={`Selected episode: ${episodeTitle(episode)}`}>
+                          {sharedEpisode && <p className="guide-kicker">Shared episode · {activeGroup?.label}{integerOrNull(episode.episode_number) !== null ? ` · Episode ${episode.episode_number}` : ''}</p>}
                           <h4>{episodeTitle(episode)}</h4>
-                          <WatchControl onDownload={download} onStop={stop} onVLC={openInVLC} onWatch={() => { setPlaybackError(''); setPlaying(true); }} playing={playing} selectionKey={`episode:${selected.id}:${selectedEpisode.id}`} vlcLoading={vlcState.loading} />
+                          <WatchControl shareTarget={{kind:"episode",id:selected.id,episode:selectedEpisode.id}} onDownload={download} onStop={stop} onVLC={openInVLC} onWatch={() => { setPlaybackError(''); setPlaying(true); }} playing={playing} selectionKey={`episode:${selected.id}:${selectedEpisode.id}`} vlcLoading={vlcState.loading} />
                           <VideoDetails streamInfo={selectedEpisode?.stream_info} />
-                          {playing && <NativeVideoPlayer label="Episode" onFatalError={fatalPlayback} source={episodeStreamURL(selected.id, selectedEpisode.id)} />}
                           {vlcState.error && <div className="alert" role="alert">{vlcState.error}</div>}
                           {playbackError && <div className="alert" role="alert">{playbackError}</div>}
                           {episodeMeta(episode) && <p className="media-meta">{episodeMeta(episode)}</p>}
