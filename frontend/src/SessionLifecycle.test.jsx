@@ -45,6 +45,7 @@ function installAPI(programSearch) {
       authenticated = false;
       return Promise.resolve(new Response(null, { status: 204 }));
     }
+    if (endpoint === '/api/share') return response({ enabled: false });
     if (endpoint === '/api/session') return response(session());
     if (endpoint === '/api/live/search/capabilities') return response({ program_search: programSearch });
     if (endpoint === '/api/live/categories') return response([{ id: '2', name: 'Sample channels' }]);

@@ -1,4 +1,4 @@
-# Isolated DVR QA stack. Populate .env privately on the deployment host.
+# Isolated viewer QA stack. Populate .env privately on the deployment host.
 services:
   watch-now:
     image: ${NOW_QA_IMAGE:?Set NOW_QA_IMAGE to the exact QA image tag}
@@ -10,10 +10,12 @@ services:
       DISPATCHARR_URL: ${DISPATCHARR_URL:?Set the Dispatcharr HTTP address}
       NOW_PROGRAM_SEARCH_ENABLED: "true"
       NOW_DVR_MASTER_API_KEY_FILE: /run/secrets/watch_now_dvr_master_key
+      NOW_SHARE_KEY_FILE: /run/secrets/watch_now_share_key
       NOW_COOKIE_SECURE: ${NOW_COOKIE_SECURE:-auto}
       NOW_TRUST_PROXY_HEADERS: "false"
     secrets:
       - watch_now_dvr_master_key
+      - watch_now_share_key
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -24,3 +26,5 @@ services:
 secrets:
   watch_now_dvr_master_key:
     file: ./secrets/dvr-master-api-key.txt
+  watch_now_share_key:
+    file: ./secrets/share-key.txt

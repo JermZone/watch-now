@@ -24,6 +24,7 @@ const (
 )
 
 type Config struct {
+	ShareKey              []byte            `json:"-"`
 	DVRAPIKeys            map[string]string `json:"-"`
 	DVRMasterAPIKey       string            `json:"-"`
 	ProgramSearchEnabled  bool
@@ -133,6 +134,10 @@ func Load() (Config, error) {
 	}
 	if cfg.DVRMasterAPIKey != "" && strings.TrimSpace(os.Getenv("NOW_DVR_API_KEYS_FILE")) != "" {
 		return Config{}, fmt.Errorf("configure either a DVR master key or per-user keys, not both")
+	}
+	cfg.ShareKey, err = loadShareKey()
+	if err != nil {
+		return Config{}, err
 	}
 	return cfg, nil
 }

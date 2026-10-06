@@ -1,5 +1,6 @@
+import NavigationRoot from './navigation';
 import LoadingIndicator from './components/LoadingIndicator';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { getSession } from './api';
 import Login from './components/Login';
@@ -7,6 +8,8 @@ import ViewerShell from './components/ViewerShell';
 
 const App = () => {
   const [state, setState] = useState({ status: 'loading', session: null, notice: '' });
+
+  const expired = useCallback((notice) => setState({ status: 'anonymous', session: null, notice }), []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,10 +43,10 @@ const App = () => {
   }
 
   return (
-    <ViewerShell
-      onExpired={(notice) => setState({ status: 'anonymous', session: null, notice })}
+    <NavigationRoot session={state.session} onExpired={expired}><ViewerShell
+      onExpired={expired}
       session={state.session}
-    />
+    /></NavigationRoot>
   );
 };
 

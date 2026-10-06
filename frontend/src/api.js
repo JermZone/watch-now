@@ -157,3 +157,11 @@ export const dvrFileURL = (id, download = false) => `/api/dvr/recordings/${encod
 
 export const getTVGuide = ({ start, end, timezone = Intl.DateTimeFormat().resolvedOptions().timeZone, categoryID = '', channelID = '', page = 1, snapshot = '', signal } = {}) =>
   request(`/api/live/guide${queryString({ start, end, timezone, category_id: categoryID, channel_id: channelID, page, snapshot })}`, { signal });
+
+export const getShareCapabilities = ({ signal } = {}) => request('/api/share', { signal });
+export const createShare = (target, csrfToken, { signal } = {}) => request('/api/share', {
+  method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify(target), signal,
+});
+export const resolveShare = (token, csrfToken, { signal } = {}) => request('/api/share/resolve', {
+  method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ token }), signal,
+});

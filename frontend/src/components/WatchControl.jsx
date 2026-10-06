@@ -1,4 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Sharing } from '../navigation';
+import ShareDialog from './ShareDialog';
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import Modal from './Modal';
 
@@ -25,8 +27,10 @@ const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
   onDelete, deleteLoading = false,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
-  watchLabel = 'Watch',
+  watchLabel = 'Watch', shareTarget,
 }) => {
+  const sharing = useContext(Sharing);
+  const [sharingOpen, setSharingOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
   const [showVLCExplanation, setShowVLCExplanation] = useState(false);
@@ -38,6 +42,7 @@ const WatchControl = ({
 
   useEffect(() => {
     pendingSelectionRef.current = null;
+    setSharingOpen(false);
     setShowVLCExplanation(false);
   }, [selectionKey]);
 
@@ -206,9 +211,11 @@ const WatchControl = ({
           {onDownload && <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
             {downloadLoading ? 'Preparing download…' : 'Download'}
           </button>}
+          {sharing?.enabled && shareTarget && <button onClick={() => choose(() => setSharingOpen(true))} role="menuitem" type="button">Share link</button>}
           {onDelete && <button disabled={deleteLoading} onClick={() => choose(onDelete)} role="menuitem" type="button">Delete</button>}
         </div>
       )}
+      {sharingOpen && <ShareDialog target={shareTarget} returnFocusRef={triggerRef} onClose={() => setSharingOpen(false)} />}
       {showVLCExplanation && !playing && (
         <Modal labelledBy="vlc-dialog-title" initialFocusRef={confirmRef} returnFocusRef={triggerRef} onClose={() => setShowVLCExplanation(false)}>
             <h3 id="vlc-dialog-title">Open in VLC</h3>

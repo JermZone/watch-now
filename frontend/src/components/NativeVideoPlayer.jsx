@@ -2,7 +2,7 @@ import VideoFrame from './VideoFrame';
 import LoadingIndicator from './LoadingIndicator';
 import { useEffect, useRef, useState } from 'react';
 
-const NativeVideoPlayer = ({ label = 'Video', onFatalError, source }) => {
+const NativeVideoPlayer = ({ label = 'Video', onFatalError, source, contained = false }) => {
   const videoRef = useRef(null);
   const generationRef = useRef(0);
   const [loading, setLoading] = useState(true);
@@ -63,7 +63,7 @@ const NativeVideoPlayer = ({ label = 'Video', onFatalError, source }) => {
 
   return (
     <section className="native-player" aria-label={`${label} playback`}>
-      <VideoFrame>
+      <VideoFrame contained={contained}>
         <video aria-label={`${label} player`} controls playsInline preload="metadata" ref={videoRef} />
         {loading && <div className="playback-loading" role="status"><LoadingIndicator />Preparing video…</div>}
       </VideoFrame>

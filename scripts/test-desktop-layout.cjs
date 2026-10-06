@@ -6,7 +6,8 @@ const path = require('node:path');
 const http = require('node:http');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const dist = path.resolve(process.env.NOW_LAYOUT_DIST || 'frontend/dist');
-const now = Date.now();
+// Fixed daytime coverage keeps the horizontal-scroll check meaningful at night.
+const now = Date.parse('2026-10-05T18:00:00Z');
 const description = 'A long sample description that must remain reachable inside its panel. '.repeat(100);
 const channels = Array.from({ length: 100 }, (_, i) => ({ id: `${i + 1}`, name: `Sample channel ${i + 1}`, channel_number: `${i + 1}`, category_id: '1' }));
 const categories = Array.from({ length: 40 }, (_, i) => ({ id: `${i + 1}`, name: `Category ${i + 1}` }));
@@ -54,7 +55,7 @@ async function contained(page, label) {
   await frame(page);
   const size = await page.evaluate(() => ({ width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth, scrollHeight: document.documentElement.scrollHeight, x: scrollX, y: scrollY }));
   assert.ok(size.scrollHeight <= size.height + 1 && size.scrollWidth <= size.width + 1 && size.x === 0 && size.y === 0, `${label}: document overflow ${JSON.stringify(size)}`);
-  const content = await page.locator('.viewer-content').evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
+  const content = await page.locator('.viewer-content, .viewer-shell > .playback-stage').evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
   assert.ok(content.scroll <= content.height + 1, `${label}: an extra outer content scrollbar ${JSON.stringify(content)}`);
 }
 async function scrollPane(page, selector) {
@@ -77,6 +78,7 @@ async function section(page, name) {
     for (const [width, height] of [[1920, 1080], [1366, 768], [1024, 600], [960, 540], [800, 400]]) {
       const page = await browser.newPage({ viewport: { width, height }, timezoneId: 'America/Denver' });
       page.setDefaultTimeout(10000);
+      await page.clock.install({ time: now });
       await page.goto(base);
       await page.getByRole('button', { name: 'Watch Live', exact: true }).waitFor();
       await contained(page, 'Browse');
@@ -99,13 +101,13 @@ async function section(page, name) {
       await page.getByRole('button', { name: 'Options for Sample channel 1', exact: true }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Watch live', exact: true }).click();
       await page.locator('.video-frame').waitFor();
-      await page.locator('.guide-playing-title').waitFor();
+      await page.locator('.is-live-focused').waitFor();
       await contained(page, 'Dedicated Guide player');
       const playerPane = await page.locator('.detail-panel').evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
       assert.ok(playerPane.scroll <= playerPane.height + 1, `Dedicated player has a vertical scrollbar: ${JSON.stringify(playerPane)}`);
       const video = await page.locator('.video-frame').boundingBox();
       assert.ok(video.height > 0 && video.y + video.height <= height, 'Desktop video fits vertically');
-      await page.locator('.guide-playing-title strong').evaluate(el => { el.textContent = 'A longer current program title with episode information and a descriptive subtitle. '.repeat(3); });
+      await page.locator('.channel-identity h2').evaluate(el => { el.textContent = 'A longer current program title with episode information and a descriptive subtitle. '.repeat(3); });
       await frame(page);
       const wrappedPane = await page.locator('.detail-panel').evaluate(el => ({ height: el.clientHeight, scroll: el.scrollHeight }));
       assert.ok(wrappedPane.scroll <= wrappedPane.height + 1, 'Wrapped Now playing title must not create a player scrollbar');
@@ -156,6 +158,12 @@ async function section(page, name) {
       await page.locator('.dvr-recording').first().waitFor();
       await scrollPane(page, '.dvr-section');
       await contained(page, 'DVR');
+      assert.equal(await page.locator('.dvr-recording-heading .channel-artwork').count(), await page.locator('.dvr-recording').count(), 'Each DVR card has channel artwork or initials');
+      if (process.env.NOW_LAYOUT_SCREENSHOTS) {
+        fs.mkdirSync(process.env.NOW_LAYOUT_SCREENSHOTS,{recursive:true});
+        await page.locator('.dvr-section').evaluate(el=>{el.scrollTop=0;});
+        await page.screenshot({path:path.join(process.env.NOW_LAYOUT_SCREENSHOTS,`dvr-${width}x${height}.png`)});
+      }
       await page.getByRole('button', { name: /Open menu, current section/ }).click();
       await page.getByRole('button', { name: 'About', exact: true }).click();
       await contained(page, 'About');
@@ -177,6 +185,7 @@ async function section(page, name) {
     }
     for (const [width, height] of [[390, 844], [844, 390]]) {
       const page = await browser.newPage({ viewport: { width, height }, isMobile: true, hasTouch: true });
+      await page.clock.install({ time: now });
       await page.goto(base);
       await page.getByRole('button', { name: 'Watch Live', exact: true }).waitFor();
       assert.equal(await page.locator('.viewer-shell.is-desktop').count(), 0, 'Phone layout remains natural page flow');

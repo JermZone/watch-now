@@ -1088,3 +1088,49 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
   .is-desktop .tv-guide-grid { margin-bottom: .35rem; }
   .is-desktop .tv-guide > .section-hint { margin-bottom: .35rem; }
 }
+
+.dvr-recording-heading { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+.dvr-recording-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.dvr-recording-heading h3 { margin: 0; }
+.dvr-recording-heading .channel-artwork { flex-shrink: 0; }
+
+
+/* Every player uses the remaining viewport; long metadata belongs in its dialog. */
+.viewer-shell:has(.playback-stage) { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.viewer-shell:has(.playback-stage) > .topbar,
+.viewer-shell:has(.playback-stage) > .viewer-navigation { display: none; }
+.viewer-shell:has(.playback-stage) .viewer-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.playback-stage { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .4rem; }
+.playback-stage-navigation { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex: none; }
+.playback-stage-card { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: .5rem; padding: .75rem; border: 1px solid var(--theme-rgba-149-204-184-0-1); border-radius: 12px; }
+.playback-stage-heading { display: flex; align-items: center; gap: .5rem; flex: none; min-width: 0; }
+.playback-stage-heading h2 { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.2rem; }
+.playback-stage-heading .channel-artwork, .playback-stage-heading button { flex: none; }
+.playback-stage-heading button { min-width: 72px; min-height: 44px; margin: 0; }
+.playback-stage .native-player, .playback-stage .live-player { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.playback-stage .video-space { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.playback-stage .video-frame { width: min(100%, calc(100cqh * 16 / 9)); }
+.playback-stage .playback-notice, .playback-stage .playback-warning { flex: none; margin: .25rem 0 0; }
+
+/* Live TV can return to browsing without moving or restarting its player. */
+.viewer-shell.is-live-focused { height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.is-live-focused > .topbar, .is-live-focused > .viewer-navigation { display: none; }
+.is-live-focused .viewer-content { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.is-live-focused .viewer-content > :not(.viewer-grid):not(.live-focus-navigation) { display: none; }
+.live-focus-navigation { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex: none; margin-bottom: .4rem; }
+.is-live-focused .viewer-grid { flex: 1; min-height: 0; display: flex; }
+.is-live-focused .channel-panel { display: none; }
+.is-live-focused .detail-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.is-live-focused .detail-panel > :not(.channel-identity):not(.live-playback-region) { display: none; }
+.is-live-focused .channel-identity { flex: none; }
+.is-live-focused .selected-channel-copy { min-width: 0; }
+.is-live-focused .channel-identity h2, .is-live-focused .selected-mobile-channel { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.is-live-focused .detail-meta { display: none; }
+.is-live-focused .live-playback-region, .is-live-focused .live-player { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.is-live-focused .video-space { flex: 1; min-height: 0; container-type: size; display: grid; place-items: center; }
+.is-live-focused .video-frame { width: min(100%, calc(100cqh * 16 / 9)); }
+.is-live-focused .live-player > :not(.video-space) { flex: none; }
+
+.is-live-focused .channel-identity { flex-wrap: nowrap; }
+.is-live-focused .selected-mobile-channel { flex: 1; }
+.is-live-focused .watch-control.is-playing { grid-template-columns: minmax(72px, 1fr); width: auto; }

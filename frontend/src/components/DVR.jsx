@@ -1,10 +1,13 @@
+import { useSavedState } from '../navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { APIError, changeDVR, dvrFileURL, getDVRConnection, getDVRRecordings } from '../api';
 import Modal from './Modal';
+import ChannelArtwork from './ChannelArtwork';
 import { flushSync } from 'react-dom';
 import WatchControl from './WatchControl';
 import VLCPlaylistHandoff from './VLCPlaylistHandoff';
 import { openVLC } from './vlc';
+import PlaybackStage from './PlaybackStage';
 import NativeVideoPlayer from './NativeVideoPlayer';
 
 export const airingTime = (program) => `${new Date(program.start).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} – ${new Date(program.end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
@@ -70,10 +73,13 @@ export function RecordDialog({ dvr, program, onClose, onConnect }) {
 }
 
 const scopes = [['recorded', 'Recorded'], ['recording', 'Recording'], ['scheduled', 'Scheduled'], ['attention', 'Attention']];
-export default function DVRSection({ dvr, mode, search, onFind }) {
+export default function DVRSection({ dvr, mode, search, onFind, sharedRecording = false, onBackToDVR }) {
+  const [recordingID, setRecordingID] = useSavedState('recordingID', '');
+  const restoreID = useRef(recordingID);
+  const focusID = useRef(recordingID);
   const [apiKey, setAPIKey] = useState('');
-  const [scope, setScope] = useState('recorded');
-  const [page, setPage] = useState(1);
+  const [scope, setScope] = useSavedState('dvrScope', 'recorded');
+  const [page, setPage] = useSavedState('dvrPage', 1);
   const [confirmation, setConfirmation] = useState(null);
   const [playing, setPlaying] = useState(null);
   const [playbackError, setPlaybackError] = useState('');
@@ -87,6 +93,22 @@ export default function DVRSection({ dvr, mode, search, onFind }) {
     setPlaying(null);
     return () => { vlcGeneration.current += 1; };
   }, [scope, search, mode, page, dvr.connected]);
+  useEffect(() => {
+    if (!restoreID.current || !dvr.connected || dvr.loading) return;
+    const row = dvr.items.find(row => row.id === restoreID.current);
+    if (row) {
+      setScope(row.status);
+      const index = dvr.items.filter(r => r.status === row.status).sort((a,b) => row.status === 'scheduled' ? new Date(a.start)-new Date(b.start) : new Date(b.start)-new Date(a.start)).findIndex(r => r.id === row.id);
+      setPage(Math.floor(index / 20) + 1);
+    } else setPlaybackError('This recording is no longer available to your account.');
+    restoreID.current = '';
+  }, [dvr.connected, dvr.loading, dvr.items]);
+  useEffect(() => {
+    if (!focusID.current || dvr.loading) return;
+    const node = [...document.querySelectorAll('[data-recording-id]')].find(n => n.dataset.recordingId === focusID.current);
+    node?.scrollIntoView?.({block:'nearest'});
+    if (node) { node.focus({preventScroll:true}); focusID.current = ''; }
+  }, [recordingID, page, dvr.loading]);
   const fatalPlayback = useCallback((message) => { setPlaying(null); setPlaybackError(message); }, []);
   const download = (row) => {
     const link = document.createElement('a');
@@ -110,7 +132,9 @@ export default function DVRSection({ dvr, mode, search, onFind }) {
       setVlcState({ loading: false, row: null, ready: false });
     }
   };
-  useEffect(() => { setPage(1); }, [scope, search, mode]);
+  const filterKey = `${scope}:${search}:${mode}`;
+  const previousFilter = useRef(filterKey);
+  useEffect(() => { if (previousFilter.current !== filterKey) { previousFilter.current = filterKey; setPage(1); } }, [filterKey]);
   useEffect(() => {
     if (!dvr.connected) return undefined;
     const timer = setInterval(() => { if (document.visibilityState !== 'hidden' && !dvr.busy) dvr.refresh(); }, 30000);
@@ -124,12 +148,17 @@ export default function DVRSection({ dvr, mode, search, onFind }) {
   const items = dvr.items.filter((r) => r.status === scope && (!query || `${r.title} ${r.subtitle || ''} ${r.description || ''} ${r.channel.name}`.toLocaleLowerCase().includes(query))).sort((a, b) => scope === 'scheduled' ? new Date(a.start) - new Date(b.start) : new Date(b.start) - new Date(a.start));
   const pages = Math.max(1, Math.ceil(items.length / 20));
   const currentPage = Math.min(page, pages);
+  const visibleItems = sharedRecording ? dvr.items.filter(row => row.id === recordingID) : items.slice((currentPage - 1) * 20, currentPage * 20);
   const perform = async () => {
     const { row, action } = confirmation;
     const result = await dvr.change(`recordings/${encodeURIComponent(row.id)}${action === 'delete' ? '' : `/${action}`}`, action === 'delete' ? 'DELETE' : 'POST');
     if (result) setConfirmation(null);
   };
+  if (playing) return <PlaybackStage title={playing.title} artwork={<ChannelArtwork channel={playing.channel} size="compact" />} backLabel={sharedRecording ? 'Back to recording details' : 'Back to DVR'} onBack={() => setPlaying(null)} onStop={() => setPlaying(null)} details={<>{playing.subtitle && <p>{playing.subtitle}</p>}<p>{playing.channel.name} · {airingTime(playing)}</p>{playing.description && <p>{playing.description}</p>}</>}>
+    <NativeVideoPlayer contained label="Recording" onFatalError={fatalPlayback} source={dvrFileURL(playing.id)} />
+  </PlaybackStage>;
   return <section className="dvr-section" aria-label="DVR">
+    {sharedRecording && <button className="back-button" onClick={onBackToDVR} type="button">← Back to DVR</button>}
     {dvr.error && <div className="alert" role="alert"><p>{dvr.error}</p><button disabled={dvr.loading || dvr.busy} onClick={dvr.refresh} type="button">Retry</button></div>}
     {dvr.loading && <p role="status">Refreshing DVR…</p>}
     {dvr.loading && !dvr.connected ? null : !dvr.connected && dvr.managed ? <p>DVR is configured on the server. Ask your Watch Now administrator to check the connection.</p> : !dvr.connected ? <form className="dvr-connect" onSubmit={connect}>
@@ -140,20 +169,22 @@ export default function DVRSection({ dvr, mode, search, onFind }) {
       {dvr.access === 'none' && <p className="section-hint">DVR access is disabled for your Dispatcharr account.</p>}
       {!dvr.managed && <button className="quiet-button" disabled={dvr.busy} onClick={() => dvr.change('connection', 'DELETE')} type="button">Disconnect DVR</button>}
       {dvr.access !== 'none' && <>
-        <nav aria-label="DVR status" className="live-search-modes">{scopes.map(([value, label]) => <button aria-pressed={scope === value} key={value} onClick={() => setScope(value)} type="button">{label} ({dvr.items.filter((r) => r.status === value).length})</button>)}</nav>
-        {mode === 'search' && <p className="section-hint">Search filters your recordings and schedule in the selected status.</p>}
+        {!sharedRecording && <nav aria-label="DVR status" className="live-search-modes">{scopes.map(([value, label]) => <button aria-pressed={scope === value} key={value} onClick={() => setScope(value)} type="button">{label} ({dvr.items.filter((r) => r.status === value).length})</button>)}</nav>}
+        {!sharedRecording && mode === 'search' && <p className="section-hint">Search filters your recordings and schedule in the selected status.</p>}
         {playbackError && <p role="alert">{playbackError}</p>}
         {vlcState.ready && <VLCPlaylistHandoff loading={vlcState.loading} title={vlcState.row.title} onBack={() => { vlcGeneration.current += 1; setVlcState({ loading: false, row: null, ready: false }); }} onRetry={() => openInVLC(vlcState.row)} />}
-        {items.slice((currentPage - 1) * 20, currentPage * 20).map((row) => <article className="program-card dvr-recording" key={row.id}>
-          <h3>{row.title}</h3>{row.subtitle && <p>{row.subtitle}</p>}<p>{row.channel.name} · {airingTime(row)}</p>{row.description && <p>{row.description}</p>}
+        {visibleItems.map((row) => <article className="program-card dvr-recording" key={row.id} data-recording-id={row.id} tabIndex="-1">
+          <div className="dvr-recording-heading">
+          <ChannelArtwork channel={row.channel} size="compact" />
+          <div>{sharedRecording && <p className="guide-kicker">Shared recording</p>}<h3 title={row.title}>{row.title}</h3></div></div>{row.subtitle && <p>{row.subtitle}</p>}<p>{row.channel.name} · {airingTime(row)}</p>{row.description && <p>{row.description}</p>}
           {row.status === 'attention' && <p>This recording is incomplete, processing, or needs attention in Dispatcharr.</p>}
           {row.status === 'recording' && <p>Recording continues in Dispatcharr. Playback becomes available after processing finishes.</p>}
-          <div className="dvr-actions">{row.playable && <WatchControl selectionKey={`recording:${row.id}`} playing={playing?.id === row.id} onWatch={() => { vlcGeneration.current += 1; setVlcState({ loading: false, row: null, ready: false }); setPlaybackError(''); setPlaying(row); }} onStop={() => setPlaying(null)} onDownload={() => download(row)} onVLC={() => openInVLC(row)} vlcLoading={vlcState.loading && vlcState.row?.id === row.id} playbackLoading={dvr.busy || vlcState.loading} onDelete={dvr.access === 'manage' ? () => setConfirmation({ row, action: 'delete' }) : undefined} deleteLoading={dvr.busy} />}
+          <div className="dvr-actions">{row.playable && <WatchControl shareTarget={{kind:"recording",id:row.id}} selectionKey={`recording:${row.id}`} playing={playing?.id === row.id} onWatch={() => { vlcGeneration.current += 1; setVlcState({ loading: false, row: null, ready: false }); setPlaybackError(''); setRecordingID(row.id); setPlaying(row); }} onStop={() => setPlaying(null)} onDownload={() => download(row)} onVLC={() => openInVLC(row)} vlcLoading={vlcState.loading && vlcState.row?.id === row.id} playbackLoading={dvr.busy || vlcState.loading} onDelete={dvr.access === 'manage' ? () => setConfirmation({ row, action: 'delete' }) : undefined} deleteLoading={dvr.busy} />}
           {dvr.access === 'manage' && !row.playable && (row.status === 'recording' ? <><button disabled={dvr.busy} onClick={() => setConfirmation({ row, action: 'extend' })} type="button">Extend 30 minutes</button><button disabled={dvr.busy} onClick={() => setConfirmation({ row, action: 'stop' })} type="button">Stop recording</button></> : <button disabled={dvr.busy} onClick={() => setConfirmation({ row, action: 'delete' })} type="button">{row.status === 'scheduled' ? 'Cancel recording' : 'Delete recording'}</button>)}</div>
-          {playing?.id === row.id && <NativeVideoPlayer label="Recording" onFatalError={fatalPlayback} source={dvrFileURL(row.id)} />}
         </article>)}
-        {items.length === 0 && !dvr.loading && <div className="empty-state dvr-empty-state"><p>No {query ? 'matching ' : ''}recordings in this view.</p>{onFind && !dvr.items.some((row) => row.status === scope) && <button onClick={onFind} type="button">Find something to record</button>}</div>}
-        {pages > 1 && <nav aria-label="DVR pages" className="pagination"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} type="button">Previous</button><span>Page {currentPage} of {pages}</span><button disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)} type="button">Next</button></nav>}
+        {sharedRecording && visibleItems.length === 0 && !dvr.loading && !playbackError && <p role="alert">This recording is no longer available to your account.</p>}
+        {!sharedRecording && items.length === 0 && !dvr.loading && <div className="empty-state dvr-empty-state"><p>No {query ? 'matching ' : ''}recordings in this view.</p>{onFind && !dvr.items.some((row) => row.status === scope) && <button onClick={onFind} type="button">Find something to record</button>}</div>}
+        {!sharedRecording && pages > 1 && <nav aria-label="DVR pages" className="pagination"><button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} type="button">Previous</button><span>Page {currentPage} of {pages}</span><button disabled={currentPage >= pages} onClick={() => setPage(currentPage + 1)} type="button">Next</button></nav>}
       </>}
     </>}
     {confirmation && <Modal labelledBy="dvr-action-heading" onClose={() => { if (!dvr.busy) setConfirmation(null); }}>

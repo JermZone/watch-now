@@ -11,6 +11,14 @@ const program = { id: 'airing', title: 'Football final', subtitle: 'Playoffs', d
 const state = (overrides = {}) => ({ connected: true, access: 'manage', items: [], loading: false, busy: false, error: '', refresh: vi.fn(), change: vi.fn().mockResolvedValue({}), ...overrides });
 
 describe('DVR foundation', () => {
+  it('shows the channel logo on ordinary recording cards with an initials fallback', () => {
+    render(<DVRSection dvr={state({items:[{...program,id:'7',status:'recorded',playable:true,channel:{...program.channel,has_artwork:true}}]})} mode="browse" search="" />);
+    const logo=screen.getByRole('img',{name:'Sports logo'});
+    expect(logo.getAttribute('src')).toContain('/api/live/channels/41/artwork');
+    fireEvent.error(logo);
+    expect(screen.getByText('S')).toBeInTheDocument();
+    expect(screen.getByRole('heading',{name:program.title})).toBeInTheDocument();
+  });
   it('keeps the exact selected airing and its description match', () => {
     const onSelectProgram = vi.fn(); const onRecord = vi.fn();
     render(<ProgramSearchSection label="Upcoming" onSelectProgram={onSelectProgram} onRecord={onRecord} state={{ items: [{ ...program, match_field: 'description' }], total: 1 }} status="upcoming" page={1} />);

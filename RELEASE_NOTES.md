@@ -1,9 +1,50 @@
 # Watch Now release notes
 
-## 1.2.1 — Desktop scrolling and Guide loading (prepared)
+## 1.3.0 — Sharing, restored navigation and focused playback (prepared)
 
-Publication and exact-image verification are pending. Use the published GitHub
-release and its checksummed digest before updating production.
+The maintainer confirmed Docky QA acceptance and authorized publication on
+2026-10-06. Release CI and exact-image verification remain pending; use the
+published GitHub release and checksummed digest before production upgrade.
+
+- Share short encrypted links to Live TV channels, movies, selected episodes and
+  completed DVR recordings. Recipients sign in with their own accounts and retain
+  their existing permissions. Links select content without automatic playback.
+- Restore per-tab navigation after refresh, including filters, selected items and
+  Guide/DVR state. Back/Forward restores navigation; sign-out clears saved state.
+- Fit playback into the available viewport across Live TV, Movies, Series and DVR.
+  Details open separately; Stop restores the selected item. Live TV can return to
+  browsing and focus again while retaining the running stream.
+- Show channel logos or initials on ordinary and shared DVR cards.
+
+### Upgrade and limits
+
+Select the verified `ghcr.io/jermzone/watch-now:1.3.0` tag/digest after publication.
+Keep service names, ports, upstream/proxy settings and existing DVR secret mounts.
+Sharing requires a new, dedicated persistent production key; configure
+`NOW_SHARE_KEY` or mount a file for `NOW_SHARE_KEY_FILE`, using one source only.
+Preserve that key across recreations to keep links valid. See
+[sharing](docs/share-navigation.md) and [installation](docs/installation.md).
+
+No database or data migration is added; restart ends in-memory sessions. Retain
+the previous image/configuration for rollback. Links do not grant access and are
+installation-specific. No saved playback position, transcoding or backend
+connection-accounting fix is introduced. Linux AMD64 remains the validated target;
+codec/device limits and deferred [issue #11](https://github.com/JermZone/watch-now/issues/11) remain.
+
+### Validation scope
+
+The approved QA image was `qa-share-0165850`, revision
+`0165850e354a617decb5bbf5327c33e6a8393fca`. Retained source evidence includes
+209 frontend tests, Go tests/vet, Compose checks, builds and 96 synthetic browser
+playback geometry cases. Those fixtures test layout/lifecycle, not upstream
+decoding; Firefox Live TV was skipped in the temporary runtime for missing codec
+support. The maintainer's QA acceptance does not specify a complete device matrix
+or claim fresh full-device testing of the subsequently published image.
+
+## 1.2.1 — Desktop scrolling and Guide loading
+
+Use the [published release](https://github.com/JermZone/watch-now/releases/tag/v1.2.1)
+for the verified digest and distribution evidence.
 
 - Keep desktop navigation visible while channel, search, Guide, catalog, and DVR
   panes scroll within the viewport. Phone and touch-landscape layouts retain page scrolling.

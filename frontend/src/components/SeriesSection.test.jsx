@@ -147,12 +147,13 @@ describe('series episode ordering', () => {
     expect(screen.queryByRole('button', { name: 'Check compatibility' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Watch' }));
     const player = screen.getByTestId('native-player');
-    const watchControl = screen.getByRole('button', { name: 'Stop' }).closest('.watch-control');
     expect(player).toHaveAttribute('data-source', '/api/series/4/episodes/9/stream');
-    expect(selectedEpisode).toContainElement(player);
-    expect(watchControl.compareDocumentPosition(videoDetails) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(videoDetails.compareDocumentPosition(player) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(player.compareDocumentPosition(screen.getByText('Episode detail')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('region',{name:'Watching Safe Series — Pilot'})).toContainElement(player);
+    await user.click(screen.getByRole('button',{name:'Playback details'}));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Episode detail');
+    expect(screen.getByRole('list',{name:'Stream details'})).toHaveTextContent(/H.264.*AAC.*MP4/);
+    expect(screen.getByTestId('native-player')).toBe(player);
+    await user.click(screen.getByRole('button',{name:'Close',exact:true}));
     expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Stop' }));
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();
@@ -191,6 +192,7 @@ describe('series episode ordering', () => {
     await user.click(screen.getByRole('button', { name: 'Watch' }));
     expect(nativePlayerEvents).toEqual(['mount:/api/series/4/episodes/9/stream']);
 
+    await user.click(screen.getByRole('button',{name:/Back to episode details/}));
     await user.click(screen.getByRole('button', { name: /Episode 2 · Next/ }));
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();
     expect(screen.queryByText(COMPATIBILITY_STATUS)).not.toBeInTheDocument();
@@ -201,6 +203,7 @@ describe('series episode ordering', () => {
     ]);
 
     await user.click(screen.getByRole('button', { name: 'Watch' }));
+    await user.click(screen.getByRole('button',{name:/Back to episode details/}));
     await user.selectOptions(screen.getByRole('combobox', { name: 'Season' }), 'season:2');
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();
     expect(nativePlayerEvents).toEqual([
@@ -212,6 +215,7 @@ describe('series episode ordering', () => {
 
     await user.click(screen.getByRole('button', { name: /Episode 1 · Other/ }));
     await user.click(screen.getByRole('button', { name: 'Watch' }));
+    await user.click(screen.getByRole('button',{name:/Back to episode details/}));
     await user.click(screen.getByRole('button', { name: /Back to Series/ }));
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();
     expect(nativePlayerEvents).toEqual([

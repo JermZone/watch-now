@@ -119,6 +119,7 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
 
 it('refreshes stale listings, pauses while hidden, and reloads when Guide reopens', async () => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-05T12:00:00Z'));
   try {
     getTVGuide.mockImplementation(() => Promise.resolve({ ...page(), fetched_at: new Date().toISOString() }));
     const p = props();
@@ -148,6 +149,7 @@ it('refreshes stale listings, pauses while hidden, and reloads when Guide reopen
 
 it('keeps Retry available after an automatic reload fails', async () => {
   vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-05T12:00:00Z'));
   try {
     getTVGuide.mockResolvedValueOnce({ ...page(), fetched_at: new Date().toISOString() })
       .mockRejectedValueOnce(new Error('Guide temporarily unavailable'))

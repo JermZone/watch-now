@@ -1,3 +1,4 @@
+import { useSavedState } from '../navigation';
 import LoadingIndicator from './LoadingIndicator';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
@@ -9,6 +10,7 @@ import { BrowseHeader } from './CategoryBrowser';
 import CategoryBrowser from './CategoryBrowser';
 import VideoDetails from './VideoDetails.jsx';
 import DetailLoadingStatus from './DetailLoadingStatus';
+import PlaybackStage from './PlaybackStage';
 import NativeVideoPlayer from './NativeVideoPlayer';
 import Pagination from './Pagination';
 import PosterArtwork from './PosterArtwork';
@@ -36,8 +38,10 @@ const MoviesSection = ({
 }) => {
   const showingCategories = !search.trim() && browseSelection === null;
   const [categoryState, setCategoryState] = useState({ loading: !Array.isArray(categories), error: '', retry: 0 });
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useSavedState('moviePage', 1);
   const [catalog, setCatalog] = useState({ items: [], total: 0, loading: false, error: '' });
+  const [savedID, setSavedID] = useSavedState('movieID', '');
+  const initialID = useRef(savedID);
   const [selected, setSelected] = useState(null);
   const [detailState, setDetailState] = useState({ detail: null, loading: false, error: '' });
   const [playing, setPlaying] = useState(false);
@@ -68,6 +72,7 @@ const MoviesSection = ({
     setPlaying(false);
     setPlaybackError('');
     setVlcState({ loading: false, error: '', ready: false, title: '' });
+    setSavedID('');
     setSelected(null);
     setDetailState({ detail: null, loading: false, error: '' });
   }, []);
@@ -151,6 +156,7 @@ const MoviesSection = ({
     setPlaying(false);
     setPlaybackError('');
     pendingDetailRevealRef.current = true;
+    setSavedID(movie.id);
     setSelected(movie);
     setDetailState({ detail: movie, loading: true, error: '' });
     getMovie(movie.id, { signal: controller.signal }).then((detail) => {
@@ -164,6 +170,8 @@ const MoviesSection = ({
       if (detailControllerRef.current === controller) detailControllerRef.current = null;
     });
   };
+
+  useEffect(() => { if (initialID.current) { selectMovie({id:initialID.current}); initialID.current = ''; } }, []);
 
   useLayoutEffect(() => {
     if (!selected || !pendingDetailRevealRef.current) return;
@@ -204,6 +212,10 @@ const MoviesSection = ({
   const fatalPlayback = useCallback((message) => { setPlaying(false); setPlaybackError(message); }, []);
   const detail = detailState.detail || selected;
 
+  if (playing && selected) return <PlaybackStage title={titleFor(detail)} backLabel="Back to movie details" onBack={stop} onStop={stop} details={<><VideoDetails streamInfo={detail?.stream_info} /><p>{metadataFor(detail)}</p><p>{descriptionFor(detail)}</p>{detail?.director && <p>Director: {detail.director}</p>}{detail?.cast && <p>Cast: {detail.cast}</p>}</>}>
+    <NativeVideoPlayer contained label="Movie" onFatalError={fatalPlayback} source={movieStreamURL(selected.id)} />
+  </PlaybackStage>;
+
   return (
     <section className="media-section" aria-labelledby="movies-heading">
       <h2 className="sr-only" id="movies-heading">Movies</h2>
@@ -214,13 +226,12 @@ const MoviesSection = ({
           <section aria-label={`Playback controls for ${titleFor(detail)}`} className="media-watch-area">
             <div className="media-watch-header">
               <h3 id="selected-movie-heading">{titleFor(detail)}</h3>
-              <WatchControl onDownload={download} onStop={stop} onVLC={openInVLC} onWatch={() => { setPlaybackError(''); setPlaying(true); }} playing={playing} selectionKey={`movie:${selected.id}`} vlcLoading={vlcState.loading} />
+              <WatchControl shareTarget={{kind:"movie",id:selected.id}} onDownload={download} onStop={stop} onVLC={openInVLC} onWatch={() => { setPlaybackError(''); setPlaying(true); }} playing={playing} selectionKey={`movie:${selected.id}`} vlcLoading={vlcState.loading} />
               <VideoDetails streamInfo={detail?.stream_info} />
             </div>
             {vlcState.error && <div className="alert" role="alert">{vlcState.error}</div>}
             {playbackError && <div className="alert" role="alert">{playbackError}</div>}
           </section>
-          {playing && <NativeVideoPlayer label="Movie" onFatalError={fatalPlayback} source={movieStreamURL(selected.id)} />}
           <article className="media-detail" aria-label={`Selected movie: ${titleFor(detail)}`}>
             <div className="detail-poster"><PosterArtwork label={titleFor(detail)} source={detail?.has_artwork ? movieArtworkURL(selected.id) : ''} /></div>
             <div className="media-detail-copy">

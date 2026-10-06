@@ -1,3 +1,4 @@
+import { useSavedState } from '../navigation';
 import { RecordButton } from './DVR';
 import { useEffect, useState } from 'react';
 
@@ -69,7 +70,7 @@ export const ProgramSearchSection = ({ categoryID, label, onChannels, onPageChan
 
 const LiveSearchResults = ({ categoryID, channels, channelsLoading, debouncedQuery, onExpired, onScopeChange, onSelect, onSelectProgram, onRecord, onWatch, query, scope }) => {
   const key = `${query}\0${scope}\0${categoryID}`;
-  const [pages, setPages] = useState({ key, channels: 1, now: 1, upcoming: 1 });
+  const [pages, setPages] = useSavedState('searchPages', { key, channels: 1, now: 1, upcoming: 1 });
   const active = pages.key === key ? pages : { key, channels: 1, now: 1, upcoming: 1 };
   const changePage = (status, page) => setPages({ ...active, [status]: page });
   const now = usePrograms({ categoryID, debouncedQuery, enabled: scope === 'all' || scope === 'now', onExpired, page: active.now, query, status: 'now' });

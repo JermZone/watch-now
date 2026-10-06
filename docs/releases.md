@@ -1,20 +1,14 @@
 # Maintainer release procedure
 
-Version **1.2.1 is prepared but not published** for the desktop layout and Guide
-loading candidate. The maintainer requested QA-to-production promotion on
-2026-10-05 and will update Nebula Compose after image verification. Follow the
-review, tagged release, exact-image verification, and latest-promotion steps below.
+Version **1.3.0 is prepared but not published** for sharing, navigation restoration
+and focused playback. The maintainer confirmed Docky QA and authorized GitHub
+publication on 2026-10-06; Nebula deployment remains their separate update after
+image verification. See [1.3.0 preparation](release-readiness-1.3.0.md).
 
-Watch Now **1.2.0 is published**. Its
-[release record](https://github.com/JermZone/watch-now/releases/tag/v1.2.0)
-contains distribution verification and stable-promotion evidence. The clean
-source-repository handover is complete; 1.0.0's evidence remains in
-[release readiness](release-readiness.md), and the
-[1.1.0 preparation record](release-readiness-1.1.0.md) is historical.
-Use the procedure below for future releases. Version metadata and release notes
-alone do not approve stable publication or establish that a registry image exists.
-The earlier `ghcr.io/jermzone/dispatcharr-now:1.0.2` beta remains a separate historical image;
-do not replace or relabel that historical release.
+Watch Now **1.2.1 is published**. Its
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.2.1) contains
+distribution and stable-promotion evidence. Earlier preparation records remain
+historical; metadata alone does not establish image availability.
 
 Published tags, images, and assets are immutable. Do not replace a version to fix
 it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untouched.
