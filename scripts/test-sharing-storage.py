@@ -53,7 +53,15 @@ def start(suffix, storage=None, readonly=False, explicit=None, directory=True):
 
 
 def saved_key(name):
-    archive = docker("cp", name + ":/var/lib/watch-now/share-key", "-")
+    try:
+        archive = docker("cp", name + ":/var/lib/watch-now/share-key", "-")
+    except RuntimeError:
+        # Only report directory metadata and a warning flag, never file contents,
+        # environment values or raw application/Docker output.
+        with tarfile.open(fileobj=io.BytesIO(docker("cp", name + ":/var/lib/watch-now", "-"))) as files:
+            entry = files.getmembers()[0]
+            raise RuntimeError("Sharing key unavailable: directory uid=%d gid=%d mode=%04o warning=%s" %
+                               (entry.uid, entry.gid, entry.mode, warning(name))) from None
     with tarfile.open(fileobj=io.BytesIO(archive)) as files:
         entry = files.getmembers()[0]
         assert entry.uid == 65532 and entry.gid == 65532 and entry.mode == 0o600
