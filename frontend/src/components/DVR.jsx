@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { APIError, changeDVR, dvrFileURL, getDVRConnection, getDVRRecordings } from '../api';
 import Modal from './Modal';
 import RecordingStatus from './RecordingStatus';
+import RecordingOptions from './RecordingOptions';
 import ChannelArtwork from './ChannelArtwork';
 import { flushSync } from 'react-dom';
 import WatchControl from './WatchControl';
@@ -127,14 +128,21 @@ export default function DVRSection({ dvr, mode, search, onFind, sharedRecording 
     link.href = dvrFileURL(row.id, true); link.download = '';
     document.body.appendChild(link); link.click(); link.remove();
   };
-  const openInVLC = async (row) => {
+  const openInVLC = async (row, position) => {
+    if (row.can_watch_active && !position) {
+      watchReturnRef.current = document.activeElement;
+      setWatchChoice({ ...row, target: 'vlc' });
+      return;
+    }
     if (dvr.busy || vlcState.loading) return;
     const generation = ++vlcGeneration.current;
     setPlaybackError('');
     setVlcState({ loading: true, row, ready: false });
-    const result = await dvr.change(`recordings/${encodeURIComponent(row.id)}/vlc`, 'POST');
+    const result = position
+      ? await dvr.change(`recordings/${encodeURIComponent(row.id)}/vlc`, 'POST', { position })
+      : await dvr.change(`recordings/${encodeURIComponent(row.id)}/vlc`, 'POST');
     if (generation !== vlcGeneration.current) return;
-    if (!result?.launch_url || !latestDVR.current.connected || !latestDVR.current.items.some((r) => r.id === row.id && r.playable)) { setVlcState({ loading: false, row: null, ready: false }); return; }
+    if (!result?.launch_url || !latestDVR.current.connected || !latestDVR.current.items.some((r) => r.id === row.id && (r.playable || r.can_watch_active))) { setVlcState({ loading: false, row: null, ready: false }); return; }
     try {
       flushSync(() => setPlaying(null));
       const mode = openVLC(result.launch_url, row.title);
@@ -161,6 +169,7 @@ export default function DVRSection({ dvr, mode, search, onFind, sharedRecording 
   const watchActiveRecording = (position) => {
     const row = latestDVR.current.items.find(item => item.id === watchChoice?.id && (item.can_watch_active || item.playable));
     if (!row || !latestDVR.current.connected || latestDVR.current.access === 'none') { setWatchChoice(null); return; }
+    if (watchChoice.target === 'vlc') { setWatchChoice(null); void openInVLC(row, position); return; }
     vlcGeneration.current += 1;
     setVlcState({ loading: false, row: null, ready: false });
     setPlaybackError(''); setRecordingID(row.id); setWatchChoice(null);
@@ -208,6 +217,7 @@ export default function DVRSection({ dvr, mode, search, onFind, sharedRecording 
         {!sharedRecording && <nav aria-label="DVR status" className="live-search-modes">{scopes.map(([value, label]) => <button aria-pressed={scope === value} className={scope === value ? 'is-active' : ''} key={value} onClick={() => setScope(value)} type="button">{label} ({dvr.items.filter((r) => r.status === value).length})</button>)}</nav>}
         {!sharedRecording && mode === 'search' && <p className="section-hint">Search filters your recordings and schedule in the selected status.</p>}
         {playbackError && <p role="alert">{playbackError}</p>}
+        {vlcState.row?.can_watch_active && <p className="section-hint">VLC recording preview: recording continues when you close VLC. After a long pause at completion, you may need to reopen the finished recording.</p>}
         {vlcState.ready && <VLCPlaylistHandoff loading={vlcState.loading} title={vlcState.row.title} onBack={() => { vlcGeneration.current += 1; setVlcState({ loading: false, row: null, ready: false }); }} onRetry={() => openInVLC(vlcState.row)} />}
         {visibleItems.map((row) => <article className="program-card dvr-recording" key={row.id} data-recording-id={row.id} tabIndex="-1">
           <div className="dvr-recording-heading">
@@ -220,22 +230,20 @@ export default function DVRSection({ dvr, mode, search, onFind, sharedRecording 
           {row.status === 'recording' && <p>{row.can_watch_active ? 'Watch from the beginning or join live while recording continues.' : 'Recording continues in Dispatcharr. Playback becomes available after processing finishes.'}</p>}
           <div className="dvr-actions">
             {row.can_watch_active && !row.playable && <div className="dvr-recording-control">
-              <WatchControl showMenuWatch={false} showVLC={false} watchHasPopup="dialog" selectionKey={`recording:${row.id}`}
+              <WatchControl showMenuWatch={false} onVLC={() => openInVLC(row)} vlcLoading={vlcState.loading && vlcState.row?.id === row.id} watchHasPopup="dialog" selectionKey={`recording:${row.id}`}
                 playbackLoading={dvr.busy || vlcState.loading}
                 onWatch={(event) => { watchReturnRef.current = event.currentTarget; event.currentTarget.focus(); setWatchChoice(row); }}
-                extraActions={dvr.access === 'manage' ? [
-                  { label: 'Extend 30 minutes', onSelect: () => requestConfirmation(row, 'extend') },
-                  { label: 'Stop recording', onSelect: () => requestConfirmation(row, 'stop') },
-                ] : []} />
+              />
               <RecordingStatus recording label="Now Recording" />
             </div>}
             {row.playable && <WatchControl showMenuWatch={false} shareTarget={{kind:"recording",id:row.id}} selectionKey={`recording:${row.id}`} playing={playing?.id === row.id}
               onWatch={() => { vlcGeneration.current += 1; setVlcState({ loading: false, row: null, ready: false }); setPlaybackError(''); setRecordingID(row.id); setPlaying(row); }}
               onStop={() => setPlaying(null)} onDownload={() => download(row)} onVLC={() => openInVLC(row)}
               vlcLoading={vlcState.loading && vlcState.row?.id === row.id} playbackLoading={dvr.busy || vlcState.loading} />}
-            {dvr.access === 'manage' && !row.playable && !row.can_watch_active && (row.status === 'recording'
-              ? <><button className="quiet-button" disabled={dvr.busy} onClick={(event) => requestConfirmation(row, 'extend', event)} type="button">Extend 30 minutes</button><button className="quiet-button" disabled={dvr.busy} onClick={(event) => requestConfirmation(row, 'stop', event)} type="button">Stop recording</button></>
-              : row.status === 'scheduled' && <button className="quiet-button" disabled={dvr.busy} onClick={(event) => requestConfirmation(row, 'delete', event)} type="button">Cancel recording</button>)}
+            {dvr.access === 'manage' && !row.playable && row.status === 'recording' &&
+              <RecordingOptions disabled={dvr.busy} onSelect={(action, event) => requestConfirmation(row, action, event)} />}
+            {dvr.access === 'manage' && !row.playable && !row.can_watch_active && row.status === 'scheduled' &&
+              <button className="quiet-button" disabled={dvr.busy} onClick={(event) => requestConfirmation(row, 'delete', event)} type="button">Cancel recording</button>}
           </div>
         </article>)}
         {sharedRecording && visibleItems.length === 0 && !dvr.loading && !playbackError && <p role="alert">This recording is no longer available to your account.</p>}
@@ -244,7 +252,7 @@ export default function DVRSection({ dvr, mode, search, onFind, sharedRecording 
       </>}
     </>}
     {watchChoice && <Modal labelledBy="dvr-watch-heading" returnFocusRef={watchReturnRef} onClose={() => setWatchChoice(null)}>
-      <h2 id="dvr-watch-heading">Watch recording</h2><p>{watchChoice.title}</p>
+      <h2 id="dvr-watch-heading">{watchChoice.target === 'vlc' ? 'Watch recording in VLC' : 'Watch recording'}</h2><p>{watchChoice.title}</p>
       <div className="recording-watch-choices">
         <button className="quiet-button recording-watch-choice" aria-label="Watch from Beginning" onClick={() => watchActiveRecording('beginning')} type="button">
           <strong>Watch from Beginning</strong><span>Start at the earliest captured footage.</span>

@@ -1168,3 +1168,5 @@ select, .mobile-channel-trigger strong, .watch-control, .live-watch-button, .wat
 .is-live-focused .live-playback-region > .native-player { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .is-live-focused .native-player > :not(.video-space) { flex: none; }
 .is-live-focused .live-recording-control { flex: none; }
+
+.recording-options { align-self: flex-start; }

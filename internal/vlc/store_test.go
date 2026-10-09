@@ -396,3 +396,39 @@ func TestMediaRelayConcurrencyIsBoundedPerToken(t *testing.T) {
 		release()
 	}
 }
+
+func TestRecordingStartChoiceAndBootstrapAreIsolated(t *testing.T) {
+	store := NewStore(8)
+	params := movieParams("viewer", "7")
+	params.Kind, params.Extension, params.StartPosition = KindRecording, "m3u8", "beginning"
+	first, err := store.Create(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	params.StartPosition = "latest"
+	second, err := store.Create(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	beginning, ok := store.ResolveMedia(first.MediaID, false)
+	if !ok || beginning.StartPosition != "beginning" {
+		t.Fatal("start choice not bound to token")
+	}
+	latest, ok := store.ResolveMedia(second.MediaID, false)
+	if !ok || latest.StartPosition != "latest" {
+		t.Fatal("second choice changed")
+	}
+	store.MarkRecordingStarted(first.MediaID)
+	if !store.RecordingStarted(first.MediaID) || store.RecordingStarted(second.MediaID) {
+		t.Fatal("bootstrap state crossed tokens")
+	}
+	store.DeleteSession("viewer")
+	store.MarkRecordingStarted(first.MediaID)
+	if store.RecordingStarted(first.MediaID) {
+		t.Fatal("revoked token was resurrected")
+	}
+	params.Kind = KindMovie
+	if _, err := store.Create(params); err != ErrInvalidInput {
+		t.Fatal("start position accepted for non-recording media")
+	}
+}

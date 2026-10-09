@@ -251,6 +251,12 @@ func (s *Server) handleActiveRecording(w http.ResponseWriter, r *http.Request) {
 				lines[i] = base + "/" + line
 			}
 		}
+		// Native HLS chooses its initial position before JavaScript can reliably
+		// seek. This viewer-owned hint retains the entire growing timeline and
+		// is never forwarded to Dispatcharr. Ordinary/live requests are unchanged.
+		if r.URL.Query().Get("start") == "beginning" {
+			lines[0] += "\n#EXT-X-START:TIME-OFFSET=0,PRECISE=YES"
+		}
 		w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 		w.Header().Set("Cache-Control", "private, no-store")
 		_, _ = w.Write([]byte(strings.Join(lines, "\n")))

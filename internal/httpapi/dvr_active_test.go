@@ -130,6 +130,7 @@ func TestActiveRecordingLeasePermissionsAndCompletion(t *testing.T) {
 	}
 	check(call("GET", base+"file", "", false, cookie, ""), 409)
 	check(call("GET", "/api/dvr/recordings/7/download", "", false, cookie, ""), 409)
+	// A single fresh segment is not enough to launch the external player.
 	check(call("POST", "/api/dvr/recordings/7/vlc", "", true, cookie, ""), 409)
 
 	// Multiple GETs attach to one playback generation and do not cancel siblings.
@@ -599,5 +600,31 @@ func TestActiveRecordingReadinessRechecksOwnershipAfterManifestRead(t *testing.T
 				}
 			}
 		})
+	}
+}
+
+func TestActiveRecordingNativeBeginningHintRetainsTimeline(t *testing.T) {
+	_, call, descriptor := newReadinessTrial(t, func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, readinessPlaylist(12, false))
+	})
+	for _, query := range []string{"", "?start=beginning", "?start=latest", "?start=beginning"} {
+		response := call("GET", descriptor.Manifest+query)
+		if response.Code != http.StatusOK {
+			t.Fatalf("playlist status = %d", response.Code)
+		}
+		body := response.Body.String()
+		want := 0
+		if query == "?start=beginning" {
+			want = 1
+		}
+		if strings.Count(body, "#EXT-X-START:TIME-OFFSET=0,PRECISE=YES") != want {
+			t.Fatal("native start preference was not applied exclusively to beginning requests")
+		}
+		if strings.Count(body, "#EXTINF:") != 12 || strings.Contains(body, "#EXT-X-ENDLIST") || !strings.Contains(body, "#EXT-X-PLAYLIST-TYPE:EVENT") {
+			t.Fatal("native hint changed the growing recording timeline")
+		}
+		if !strings.Contains(body, strings.TrimSuffix(descriptor.Manifest, "index.m3u8")+"seg_00011.ts") {
+			t.Fatal("native playlist did not retain authorized local segment paths")
+		}
 	}
 }

@@ -84,15 +84,17 @@ export default function LiveRecordingControl({
   const now = Date.now();
   const canCreate = enabled && interactionActive && access === 'manage' && currentProgram
     && Date.parse(currentProgram.start) <= now && Date.parse(currentProgram.end) > now;
-  const openChoice = (event) => {
+  const openChoice = (event, target = 'browser') => {
     if (!active || playing || busy || playbackLoading) return;
-    watchRef.current = event.currentTarget;
+    watchRef.current = event?.currentTarget || document.activeElement;
     setError('');
-    setChoice({ channelID, recordingID: active.id });
+    setChoice({ channelID, recordingID: active.id, target });
   };
   const watchRecording = (position) => {
     if (!choiceVisible || !active) return;
-    setChoice(null); setError(''); onWatchRecording?.(active, position);
+    setChoice(null); setError('');
+    if (choice.target === 'vlc') onVLC?.(active, position);
+    else onWatchRecording?.(active, position);
   };
   const recordAndWatch = async () => {
     if (!canCreate || createController.current) return;
@@ -164,14 +166,14 @@ export default function LiveRecordingControl({
   </div>;
 
   const choiceModal = choiceVisible && presentation !== 'guide' && <Modal labelledBy={choiceTitleID} initialFocusRef={beginningRef} returnFocusRef={watchRef} onClose={() => setChoice(null)}>
-    <h3 id={choiceTitleID}>Watch recording</h3>
+    <h3 id={choiceTitleID}>{choice?.target === 'vlc' ? 'Watch recording in VLC' : 'Watch recording'}</h3>
     {choices}
     <div className="dialog-actions"><button className="quiet-button" onClick={() => setChoice(null)} type="button">Cancel</button></div>
   </Modal>;
 
   if (presentation === 'guide') return <div className="guide-recording-control">
     {choiceVisible && presentation === 'guide' ? <div aria-labelledby={choiceTitleID} role="group">
-      <h3 id={choiceTitleID}>Watch recording</h3>
+      <h3 id={choiceTitleID}>{choice?.target === 'vlc' ? 'Watch recording in VLC' : 'Watch recording'}</h3>
       {choices}
       <button className="quiet-button" onClick={() => setChoice(null)} type="button">Cancel</button>
     </div> : <div className={presentation + "-watch-actions" + (active ? " has-recording" : "")}>
@@ -189,7 +191,7 @@ export default function LiveRecordingControl({
   return <div className={presentation === 'search' ? "live-recording-control search-recording-control" : "live-recording-control"}>
     <div className={active && !recordingPlaying ? "live-recording-actions has-recording" : "live-recording-actions"}>
       {(presentation !== 'search' || interactionActive) && <WatchControl onWatch={active ? openChoice : onWatchLive} showMenuWatch={false}
-        extraActions={actions} onStop={onStop} onVLC={onVLC}
+        extraActions={actions} onStop={onStop} onVLC={active ? () => openChoice(null, 'vlc') : onVLC}
         playbackLoading={playbackLoading || busy} vlcLoading={vlcLoading} playing={playing}
         selectionKey={'live:' + channelID} watchLabel={active ? 'Watch' : 'Watch Live'}
         watchHasPopup={active ? 'dialog' : undefined} shareTarget={shareTarget} />}

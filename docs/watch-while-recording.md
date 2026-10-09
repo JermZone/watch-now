@@ -108,9 +108,13 @@ Watch Now checks the authorized recording again and recovers through the finishe
 file. Browser support for its container and codecs still applies. If it cannot
 play, a clear error lets you return to finished DVR and use VLC or download.
 
-Download, VLC and recording sharing are available for playable **finished**
-recordings. A Live TV share link selects the channel, not a captured timestamp;
-Live TV VLC uses the ordinary live stream.
+Download and recording sharing are available for playable **finished**
+recordings. VLC is also available for active recordings
+in **DVR → Recording → Watch options → Watch in VLC**, with beginning/live
+choices; see
+[active recording VLC](active-recording-vlc.md). A Live TV share link selects the channel, not a captured timestamp;
+Live TV VLC offers the same beginning/live choices when an active recording is
+available; otherwise it uses the ordinary live stream.
 
 ## Devices and limits
 

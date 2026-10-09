@@ -98,7 +98,7 @@ describe('RecordingHLSPlayer', () => {
     await settle();
     const video = screen.getByLabelText('Recording player');
     expect(mock.instances).toHaveLength(0);
-    expect(video).toHaveAttribute('src', descriptor.manifest_url);
+    expect(video).toHaveAttribute('src', descriptor.manifest_url + '?start=beginning');
     Object.defineProperty(video, 'seekable', { configurable: true, value: { length: 1, start: () => 0, end: () => 80 } });
     fireEvent.canPlay(video);
     video.currentTime = 40;
@@ -251,7 +251,7 @@ describe('RecordingHLSPlayer', () => {
     await settle();
     const video = screen.getByLabelText('Recording player');
     expect(mock.instances).toHaveLength(0);
-    expect(video).toHaveAttribute('src', descriptor.manifest_url);
+    expect(video).toHaveAttribute('src', descriptor.manifest_url + '?start=beginning');
     Object.defineProperty(video, 'seekable', { configurable: true, value: { length: 1, start: () => 0, end: () => 240 } });
     video.currentTime = 200;
     fireEvent.canPlay(video);
@@ -259,6 +259,45 @@ describe('RecordingHLSPlayer', () => {
     video.currentTime = 85;
     fireEvent.canPlay(video);
     expect(video.currentTime).toBe(85);
+  });
+
+  it.each(['zero at metadata', 'ignored seek', 'pending seek'])('preserves the native beginning choice through %s', async scenario => {
+    mock.supported = false;
+    vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+    render(<RecordingHLSPlayer recordingID="7" csrfToken="csrf" />);
+    await settle();
+    const video = screen.getByLabelText('Recording player');
+    let position = 0;
+    let ignoreSeek = scenario === 'ignored seek';
+    let seeking = scenario === 'pending seek';
+    const seek = vi.fn(value => { if (!ignoreSeek) position = value; });
+    Object.defineProperty(video, 'currentTime', { configurable: true, get: () => position, set: seek });
+    Object.defineProperty(video, 'seeking', { configurable: true, get: () => seeking });
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 1 });
+    Object.defineProperty(video, 'seekable', { configurable: true, value: { length: 1, start: () => 0, end: () => 240 } });
+    fireEvent.loadedMetadata(video);
+    fireEvent.durationChange(video);
+    fireEvent.progress(video);
+    expect(seek).not.toHaveBeenCalled();
+    expect(screen.getByRole('status', { name: 'Buffering recording' })).toBeInTheDocument();
+    // Safari picks live after publishing metadata with currentTime still zero.
+    position = 228;
+    Object.defineProperty(video, 'readyState', { configurable: true, value: 2 });
+    fireEvent.canPlay(video);
+    if (scenario !== 'zero at metadata') {
+      expect(screen.getByRole('status', { name: 'Buffering recording' })).toBeInTheDocument();
+      ignoreSeek = false; seeking = false;
+      // Native decoding may land just after the requested frame. Do not loop.
+      if (scenario === 'pending seek') position = 0.1;
+      fireEvent.playing(video);
+    }
+    expect(position).toBe(scenario === 'pending seek' ? 0.1 : 0);
+    if (scenario === 'pending seek') expect(seek).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('status', { name: 'Buffering recording' })).not.toBeInTheDocument();
+    position = 85;
+    fireEvent.timeUpdate(video);
+    fireEvent.canPlay(video);
+    expect(position).toBe(85);
   });
 
   it.each([
@@ -696,7 +735,7 @@ describe('RecordingHLSPlayer', () => {
     await act(async () => resolve({ mode: 'hls', recording: true }));
     expect(video).not.toHaveAttribute('src');
     await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
-    expect(video).toHaveAttribute('src', descriptor.manifest_url);
+    expect(video).toHaveAttribute('src', descriptor.manifest_url + '?start=beginning');
     expect(createDVRActivePlayback).toHaveBeenCalledOnce();
   });
 
@@ -1041,7 +1080,7 @@ describe('RecordingHLSPlayer', () => {
       expect(engine.destroy).not.toHaveBeenCalled();
       expect(mock.instances).toHaveLength(1);
     } else {
-      expect(video).toHaveAttribute('src', descriptor.manifest_url);
+      expect(video).toHaveAttribute('src', descriptor.manifest_url + '?start=beginning');
       expect(mock.instances).toHaveLength(0);
     }
     expect(screen.queryByRole('status', { name: 'Buffering recording' })).not.toBeInTheDocument();
@@ -1082,7 +1121,7 @@ describe('RecordingHLSPlayer', () => {
     }
     expect(HTMLMediaElement.prototype.load.mock.calls.length).toBe(loads);
     expect(HTMLMediaElement.prototype.play.mock.calls.length).toBe(plays);
-    expect(video).toHaveAttribute('src', descriptor.manifest_url);
+    expect(video).toHaveAttribute('src', descriptor.manifest_url + '?start=beginning');
     expect(createDVRActivePlayback).toHaveBeenCalledOnce();
     expect(stopDVRActivePlayback).not.toHaveBeenCalled();
     expect(screen.queryByRole('status', { name: 'Buffering recording' })).not.toBeInTheDocument();

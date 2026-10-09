@@ -382,15 +382,21 @@ async function exercise(viewport) {
       'DVR recording status should occupy its own row below Watch');
     await recordingCard.getByRole('button', { name: 'Watch options', exact: true }).click();
     const recordingMenu = page.getByRole('menu');
-    await recordingMenu.getByRole('menuitem', { name: 'Extend 30 minutes', exact: true }).waitFor();
+    await recordingMenu.getByRole('menuitem', { name: 'Watch in VLC', exact: true }).waitFor();
     assert.deepEqual(await recordingMenu.getByRole('menuitem').allTextContents(),
-      ['Extend 30 minutes', 'Stop recording'], 'active DVR management should occupy only its dropdown');
+      ['Watch in VLC'], 'Watch dropdown should contain playback actions only');
     const menuRect = await recordingMenu.evaluate(el => el.getBoundingClientRect().toJSON());
     assert.ok(menuRect.left >= 0 && menuRect.top >= 0 && menuRect.right <= viewport.width + 1 &&
       menuRect.bottom <= viewport.height + 1, 'DVR recording menu must fit the viewport');
     await page.keyboard.press('Escape');
     assert.ok(await recordingCard.getByRole('button', { name: 'Watch options', exact: true })
       .evaluate(el => el === document.activeElement), 'DVR menu Escape should restore dropdown focus');
+    await recordingCard.getByRole('button', { name: 'Recording options', exact: true }).click();
+    assert.deepEqual(await page.getByRole('menu').getByRole('menuitem').allTextContents(),
+      ['Extend 30 minutes', 'Stop recording'], 'recording management should have its own menu');
+    await page.keyboard.press('Escape');
+    assert.ok(await recordingCard.getByRole('button', { name: 'Recording options', exact: true })
+      .evaluate(el => el === document.activeElement), 'recording menu Escape should restore its trigger focus');
     assert.equal(state.captureStopped, false, 'inspecting recording options must leave capture running');
     await recordingCard.getByRole('button', { name: 'Watch', exact: true }).click();
     const recordingChoice = page.getByRole('dialog', { name: 'Watch recording', exact: true });

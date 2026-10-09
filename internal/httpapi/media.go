@@ -86,6 +86,7 @@ type mediaSpec struct {
 	streamID       string
 	extension      string
 	filename       string
+	startPosition  string
 }
 
 func (s *Server) handleMovieStream(writer http.ResponseWriter, request *http.Request) {
@@ -282,6 +283,7 @@ func (s *Server) createVLCHandoff(
 		SessionID: viewerSession.ID, Kind: kind, ContentID: spec.contentID,
 		ParentSeriesID: spec.parentSeriesID, StreamID: spec.streamID,
 		Extension: spec.extension, DisplayFilename: withExtension(spec.filename, spec.extension),
+		StartPosition: spec.startPosition,
 	})
 	if err != nil {
 		if errors.Is(err, vlcstore.ErrCapacity) {
@@ -324,6 +326,10 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 	media, ok := s.vlc.ResolveMedia(mediaID, false)
 	if !ok {
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+		return
+	}
+	if media.Kind == vlcstore.KindRecording && media.Extension == "m3u8" {
+		s.serveVLCRecordingHLS(writer, request, media)
 		return
 	}
 	if filename := request.PathValue("filename"); filename != "" && filename != vlcPathFilename(media.DisplayFilename) {
