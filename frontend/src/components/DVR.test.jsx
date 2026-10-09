@@ -449,7 +449,11 @@ describe('DVR recording Watch chooser', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recording options' }));
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Extend 30 minutes', 'Stop recording']);
     expect(screen.queryByRole('menuitem', { name: /Share|Download/ })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('menuitem', { name: label }));
+    const actionItem = screen.getByRole('menuitem', { name: label });
+    fireEvent.pointerDown(actionItem, { pointerType: 'touch' });
+    fireEvent.focusIn(document.body);
+    fireEvent.pointerUp(actionItem, { pointerType: 'touch' });
+    fireEvent.click(actionItem);
     const dialog = screen.getByRole('dialog', { name: heading });
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(dvr.change).not.toHaveBeenCalled();

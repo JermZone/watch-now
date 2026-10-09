@@ -46,15 +46,18 @@ export default function RecordingOptions({ disabled, onSelect }) {
     if (!open) return undefined;
     const dismiss = event => { if (!root.current?.contains(event.target)) setOpen(false); };
     document.addEventListener('pointerdown', dismiss);
-    document.addEventListener('focusin', dismiss);
+    // Touch browsers can move focus away before dispatching the menu item's click.
+    // Dismiss pointer interactions by their target; keyboard users leave with Tab.
     return () => {
       document.removeEventListener('pointerdown', dismiss);
-      document.removeEventListener('focusin', dismiss);
     };
   }, [open]);
   const keyDown = event => {
     if (!open) return;
-    if (event.key === 'Escape') {
+    if (event.key === 'Tab') {
+      setOpen(false);
+      trigger.current.focus();
+    } else if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation(); setOpen(false); trigger.current.focus();
     } else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
       event.preventDefault();

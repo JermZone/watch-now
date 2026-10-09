@@ -1,9 +1,8 @@
 # Maintainer release procedure
 
-This procedure applies to the stable **1.5.0** release for active-recording VLC,
-beginning/live choices, recording-menu separation and native browser startup.
+This procedure applies to the stable **1.5.1** release for the iPhone recording-menu fix.
 The maintainer accepted the QA candidate and authorized a stable release directly.
-The [1.5.0 preparation record](release-readiness-1.5.0.md) preserves evidence and
+The [1.5.1 preparation record](release-readiness-1.5.1.md) preserves evidence and
 release gates. Use the [published release records](https://github.com/JermZone/watch-now/releases)
 for actual distribution status; source metadata alone does not establish availability.
 Production deployment follows the verified release and remains user-managed.
@@ -15,7 +14,7 @@ it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untou
 
 Update the frontend package/lock metadata, both image-only Compose defaults, source
 Compose build argument, and `.env.example` together. The Makefile/CI read the
-package version instead of hard-coding one. For 1.5.0 the maintainer requested a
+package version instead of hard-coding one. For 1.5.1 the maintainer requested a
 stable version directly: use unique commit-labelled QA images without
 publishing an RC. The workflow also supports `-rc.N` for releases that choose
 public candidates; changes to a published candidate require a new candidate.
