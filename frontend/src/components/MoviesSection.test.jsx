@@ -157,10 +157,15 @@ describe('MoviesSection viewer flow', () => {
     expect(player).toHaveAttribute('data-source', '/api/movies/7/stream');
     expect(screen.getByRole('region',{name:'Watching Space Movie'})).toContainElement(player);
     expect(screen.queryByRole('article',{name:'Selected movie: Space Movie'})).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button',{name:'Playback details'}));
-    expect(screen.getByRole('dialog')).toHaveTextContent('A safe detail.');
+    const details = screen.getByRole('button', { name: 'Details', exact: true });
+    expect(details).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(details.previousElementSibling).toBe(screen.getByRole('heading', { name: 'Space Movie', exact: true }));
+    expect(details.closest('.playback-stage-navigation')).toBeNull();
+    await user.click(details);
+    expect(screen.getByRole('dialog', { name: 'Playback details' })).toHaveTextContent('A safe detail.');
     expect(screen.getByTestId('native-player')).toBe(player);
     await user.click(screen.getByRole('button',{name:'Close',exact:true}));
+    expect(details).toHaveFocus();
     expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Stop' }));
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();
@@ -212,7 +217,7 @@ describe('MoviesSection viewer flow', () => {
       expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
       expect(screen.getByTestId('native-player')).toHaveAttribute('data-source', '/api/movies/7/stream');
       await act(async () => finishDetail(await jsonResponse({ id: '7', name: 'Slow Movie', plot: 'Details are ready.' })));
-      await user.click(screen.getByRole('button',{name:'Playback details'}));
+      await user.click(screen.getByRole('button',{name:'Details'}));
       expect(await screen.findByText('Details are ready.')).toBeInTheDocument();
       await user.click(screen.getByRole('button',{name:'Close',exact:true}));
       expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();

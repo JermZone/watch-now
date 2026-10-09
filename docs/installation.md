@@ -2,7 +2,7 @@
 
 [Back to Watch Now](../README.md)
 
-**Source version: `1.3.1`.** Use **Docker image / Portainer** only when
+**Source version: `1.4.0`.** Use **Docker image / Portainer** only when
 [GitHub Releases](https://github.com/JermZone/watch-now/releases) supplies a
 published version and verified image digest for `ghcr.io/jermzone/watch-now`.
 If the desired release is not available yet, use **Source testing** below.
@@ -23,6 +23,11 @@ recipients still need their own authorized account.
 You need a reachable Dispatcharr HTTP/XC endpoint and **XC viewer** credentials.
 Administration credentials may differ. Sign in through the application; do not
 put viewer passwords in Compose, `.env`, URLs, or bug reports.
+
+Dispatcharr 0.32.0 is the validated active-recording baseline. DVR playback
+requires its supported HTTP/HLS capabilities and optional DVR connection;
+earlier Live/Movie/Series/completed-DVR checks used 0.31.0. Later versions are
+checked by capability. Linux AMD64 is the validated image target.
 
 Keep test and production folders, stack names, and host ports separate. The
 examples here do not modify an existing installation or create Dispatcharr itself.
@@ -87,9 +92,9 @@ stack: it needs a local source build context.
 Confirm the container is healthy, open the configured host address/port, sign in
 with the XC viewer credentials, and verify **Menu → About**.
 
-## Optional DVR connection (development source)
+## Optional DVR connection
 
-The DVR-capable source can use a per-account API key file mounted through Compose, so viewers do not have to paste keys at login. See [DVR setup](dvr.md#configure-keys-through-compose). You can instead configure one Admin key with `NOW_DVR_MASTER_API_KEY`; master-key mode independently checks each viewer’s DVR permissions and channel lineup. See the documented account-flag limitation in the DVR setup guide.
+DVR can use a per-account API key file mounted through Compose, so viewers do not have to paste keys at login. See [DVR setup](dvr.md#configure-keys-through-compose). You can instead configure one Admin key with `NOW_DVR_MASTER_API_KEY`; master-key mode independently checks each viewer’s DVR permissions and channel lineup. See the documented account-flag limitation in the DVR setup guide.
 
 ## Local and LAN access
 
@@ -146,18 +151,32 @@ Before updating, save the previous image digest and Compose/environment settings
 For an image-only install, change `NOW_IMAGE` to the reviewed tag/digest and run
 `docker compose pull` then `docker compose up -d` from the **existing** stack folder.
 In Portainer, update the existing stack with **Re-pull image** when needed.
-Check health, sign-in, permissions, and playback after recreation.
+Check health, About version/source, sign-in, permissions and playback after
+recreation. Keep the sharing volume and existing explicit key settings; do not
+run `docker compose down -v` during an ordinary upgrade.
 
 Roll back by restoring the previous image selection and configuration, then
 recreating the same service. Source builds require checking out the intended
 revision and rebuilding with the same override; a registry pull does not update
 local source. Restarts sign viewers out and invalidate temporary media links.
-There is no persistent Watch Now database to migrate.
+There is no persistent Watch Now database to migrate. Only the sharing key is
+persistent; Dispatcharr retains the recordings.
 
 The new `watch-now:latest` policy is **stable-only** after verified publication.
 The legacy `dispatcharr-now:latest` remains a separate, unchanged beta-era tag.
 No image or tag is moved by this preparation. Follow [Migration](migration.md)
 for the later transition between packages.
+
+## iPhone/iPad home-screen shortcut
+
+Open Watch Now in Safari, then choose **Share → Add to Home Screen**. If an older
+shortcut still shows the wrong icon, remove it and add it again. The shortcut
+uses the same server and account; it does not add offline playback.
+Home-screen picture-in-picture is deferred. Apple's fullscreen controls can
+differ from the inline recording controls.
+
+For recording, pause and rewind instructions see
+[recording and live pause](watch-while-recording.md).
 
 ## Troubleshooting
 

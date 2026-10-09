@@ -129,11 +129,9 @@ func (s *Server) serveBrowserMedia(
 	streamContext, generation := s.playbacks.start(request.Context(), viewerSession, s.cfg.SessionAbsoluteTTL)
 	playbackBegan := false
 	defer func() {
-		if s.playbacks.finish(viewerSession.ID, generation) && playbackBegan {
-			s.sessions.EndPlayback(viewerSession.ID)
-		}
+		s.finishPlayback(viewerSession.ID, generation, playbackBegan)
 	}()
-	current, ok := s.sessions.BeginPlayback(viewerSession.ID)
+	current, ok := s.beginPlayback(viewerSession.ID, generation)
 	if !ok {
 		writeError(writer, http.StatusUnauthorized, "session_expired", "Your viewer session expired; sign in again")
 		return
@@ -388,8 +386,7 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 	if media.Kind == vlcstore.KindLive {
 		// Tear down any browser relay before opening the external live stream.
 		// VLC may fetch this URL without the browser's session cookie.
-		s.playbacks.stop(media.SessionID)
-		s.sessions.EndPlayback(media.SessionID)
+		s.stopPlayback(media.SessionID)
 	}
 	deadline := media.HardExpiresAt
 	if sessionDeadline := viewerSession.CreatedAt.Add(s.cfg.SessionAbsoluteTTL); sessionDeadline.Before(deadline) {

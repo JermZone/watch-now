@@ -149,11 +149,15 @@ describe('series episode ordering', () => {
     const player = screen.getByTestId('native-player');
     expect(player).toHaveAttribute('data-source', '/api/series/4/episodes/9/stream');
     expect(screen.getByRole('region',{name:'Watching Safe Series — Pilot'})).toContainElement(player);
-    await user.click(screen.getByRole('button',{name:'Playback details'}));
-    expect(screen.getByRole('dialog')).toHaveTextContent('Episode detail');
+    const details = screen.getByRole('button', { name: 'Details', exact: true });
+    expect(details.previousElementSibling).toBe(screen.getByRole('heading', { name: 'Safe Series — Pilot', exact: true }));
+    expect(details.closest('.playback-stage-navigation')).toBeNull();
+    await user.click(details);
+    expect(screen.getByRole('dialog', { name: 'Playback details' })).toHaveTextContent('Episode detail');
     expect(screen.getByRole('list',{name:'Stream details'})).toHaveTextContent(/H.264.*AAC.*MP4/);
     expect(screen.getByTestId('native-player')).toBe(player);
     await user.click(screen.getByRole('button',{name:'Close',exact:true}));
+    expect(details).toHaveFocus();
     expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Stop' }));
     expect(screen.queryByTestId('native-player')).not.toBeInTheDocument();

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -13,7 +14,19 @@ import (
 
 type dvrRow struct {
 	dispatcharr.Recording
-	Channel dispatcharr.Channel `json:"channel"`
+	Channel       dispatcharr.Channel `json:"channel"`
+	GuideAiringID string              `json:"airing_id,omitempty"`
+}
+
+var guideAiringIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
+
+func newDVRRow(recording dispatcharr.Recording, channel dispatcharr.Channel) dvrRow {
+	row := dvrRow{Recording: recording, Channel: channel}
+	// Expose only Now's opaque airing ID, never arbitrary upstream properties.
+	if guideAiringIDPattern.MatchString(recording.AiringID) {
+		row.GuideAiringID = recording.AiringID
+	}
+	return row
 }
 
 func (s *Server) dvrEnabled() bool { _, ok := s.dispatcharr.(dispatcharr.DVRAPI); return ok }
@@ -81,8 +94,7 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {
 			s.sessions.SetDVRKey(viewer.ID, viewer.DVRKey, "")
 			s.downloads.stop(viewer.ID)
-			s.playbacks.stop(viewer.ID)
-			s.sessions.EndPlayback(viewer.ID)
+			s.stopPlayback(viewer.ID)
 			s.vlc.DeleteSession(viewer.ID)
 			w.WriteHeader(204)
 			return
@@ -163,7 +175,7 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 	rows := []dvrRow{}
 	for _, recording := range recordings {
 		if ch, allowed := lineup[recording.ChannelID]; allowed {
-			rows = append(rows, dvrRow{Recording: recording, Channel: ch})
+			rows = append(rows, newDVRRow(recording, ch))
 		}
 	}
 	if r.URL.Path == "/api/dvr/recordings" {
@@ -218,7 +230,7 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 			s.dvrError(w, r, dispatcharr.ErrInvalidResponse)
 			return
 		}
-		writeJSON(w, 201, map[string]any{"recording": dvrRow{Recording: recording, Channel: ch}, "already_scheduled": false})
+		writeJSON(w, 201, map[string]any{"recording": newDVRRow(recording, ch), "already_scheduled": false})
 		return
 	}
 	id := r.PathValue("recording_id")
@@ -332,11 +344,9 @@ func (s *Server) serveDVRFile(w http.ResponseWriter, r *http.Request, api dispat
 		ctx, generation = s.playbacks.start(ctx, viewer, s.cfg.SessionAbsoluteTTL)
 		begun := false
 		defer func() {
-			if s.playbacks.finish(viewer.ID, generation) && begun {
-				s.sessions.EndPlayback(viewer.ID)
-			}
+			s.finishPlayback(viewer.ID, generation, begun)
 		}()
-		if _, ok := s.sessions.BeginPlayback(viewer.ID); !ok {
+		if _, ok := s.beginPlayback(viewer.ID, generation); !ok {
 			writeError(w, 401, "session_expired", "Sign in again")
 			return
 		}

@@ -26,11 +26,11 @@ on a separate feature branch. Existing DVR household sign-off remains separate.
 | Search parser and query | Both independently enforce `now + 24 hours` | Changing only the fetch parameter will not extend search |
 | Actual household feed | Not measured in this investigation | Coverage varies by channel and refresh; no verified maximum yet |
 
-Relevant code: [XC client](../internal/dispatcharr/client.go),
-[XMLTV parser](../internal/dispatcharr/guide.go),
-[EPG response](../internal/httpapi/server.go),
-[search](../internal/httpapi/program_search.go), and
-[channel guide](../frontend/src/components/ProgramGuide.jsx).
+Relevant code: [XC client](https://github.com/JermZone/watch-now/blob/v1.4.0/internal/dispatcharr/client.go),
+[XMLTV parser](https://github.com/JermZone/watch-now/blob/v1.4.0/internal/dispatcharr/guide.go),
+[EPG response](https://github.com/JermZone/watch-now/blob/v1.4.0/internal/httpapi/server.go),
+[search](https://github.com/JermZone/watch-now/blob/v1.4.0/internal/httpapi/program_search.go), and
+[channel guide](https://github.com/JermZone/watch-now/blob/v1.4.0/frontend/src/components/ProgramGuide.jsx).
 
 Public Dispatcharr v0.31.0 interface implementation confirms:
 

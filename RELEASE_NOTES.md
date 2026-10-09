@@ -1,10 +1,67 @@
 # Watch Now release notes
 
-## 1.3.1 — Automatic persistent sharing setup (prepared)
+## 1.4.0 — Watch while recording and live pause
 
-The maintainer tested the new sharing build on Docky, confirmed it worked as
-expected, and authorized publication on 2026-10-06. Release CI and exact published
-image verification must complete before production upgrade.
+Watch Now 1.4.0 adds playback through active recordings and brings the recording
+controls into Live TV, Search, Guide and DVR. Use
+[GitHub Releases](https://github.com/JermZone/watch-now/releases) for publication
+status, downloadable assets and verified image digests. The
+[preparation record](docs/release-readiness-1.4.0.md) preserves source and feature evidence.
+
+- Use **Watch & Record** on a current programme to start one capture and watch near
+  its latest footage. Recording continues when playback stops or the viewer leaves.
+- Open an existing capture with **Watch from Beginning** or **Watch Live** in
+  Live TV and DVR. Pause, seek, skip fifteen seconds and Go Live within captured
+  footage; Go Live deliberately resumes near the safe recorded edge.
+- Keep the player and paused position through recording updates and finished-file
+  recovery. A new capture waits for usable segments; temporary preparation
+  failures retry without creating another recording.
+- Show solid scheduled/active recording dots in Guide, with distinct accessible
+  labels. Keep the Now Recording status in channel controls and playback.
+- Align recording choices, manager Extend/Stop controls and the confirmed trash
+  action; keep Details below player titles across Live, Movies, Series and DVR.
+- Improve buffering feedback and include the Safari home-screen icon.
+
+### Expectations and compatibility
+
+Beginning means the earliest captured footage, not a missed part of the
+broadcast. Live through a recording joins its safe edge, normally about twelve
+seconds behind capture with stock segments. Ordinary Watch Live does not create
+a retained buffer. Download, VLC and recording sharing remain finished-recording
+actions; a live channel share does not identify a captured timestamp.
+
+DVR view access permits watching an existing capture; manage access permits
+recording actions. Current channel access still applies, and recordings are shared
+Dispatcharr resources. Dispatcharr 0.32.0 is the validated active-recording
+baseline; capability checks determine availability. Native Apple HLS and other
+browser playback still depend on codecs. There is no transcoding or guarantee
+that every finished MKV plays in every browser. Home-screen PiP remains deferred.
+
+### Upgrade and validation
+
+After publication and verification, select the verified 1.4.0 tag/digest.
+Retain stack/service names, ports, upstream/proxy settings, DVR mounts and the
+existing sharing key/volume. The supplied Compose retains its automatic key;
+existing explicit overrides remain supported. No database migration is required.
+Recreation signs viewers out. Keep the prior image/configuration for rollback.
+
+The integrated source passed 478 frontend tests, Go tests/vet/race, the production
+build, dependency checks and configuration checks. Earlier synthetic Chromium
+playback and Details-layout scenarios passed. The maintainer reported real
+iPhone playback through completion with pause and rewind working. These are
+source and accepted feature checks, not claims of public CI or fresh testing of
+the published image. Exact release evidence is recorded separately.
+
+Linux AMD64 remains the validated target. No saved cross-session resume position,
+catch-up for uncaptured broadcasts, recurring rules or connection-accounting fix
+is added. [Issue #11](https://github.com/JermZone/watch-now/issues/11) remains deferred.
+
+## 1.3.1 — Automatic persistent sharing setup
+
+Published on 2026-10-06. See the
+[release record](https://github.com/JermZone/watch-now/releases/tag/v1.3.1)
+for distribution evidence. The maintainer tested sharing on Docky and authorized
+publication; the retained preparation evidence below describes that candidate.
 
 - The supplied Compose setup creates and retains a private sharing key
   automatically. Fresh installations can use Share link without generating or

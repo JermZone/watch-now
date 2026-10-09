@@ -28,7 +28,7 @@ func TestDVRIdentityPermissionsIsolationAndRecording(t *testing.T) {
 	writes := 0
 	files := 0
 	records := []map[string]any{
-		{"id": 1, "channel": 41, "start_time": now.Add(-2 * time.Hour), "end_time": now.Add(-time.Hour), "custom_properties": map[string]any{"status": "completed", "remux_success": true, "program": map[string]any{"title": "Football"}, "file_path": "/secret/file.mkv", "file_url": "http://private/?api_key=secret"}},
+		{"id": 1, "channel": 41, "start_time": now.Add(-2 * time.Hour), "end_time": now.Add(-time.Hour), "custom_properties": map[string]any{"status": "completed", "remux_success": true, "program": map[string]any{"title": "Football"}, "watch_now_airing": "0123456789abcdef0123456789abcdef", "file_path": "/secret/file.mkv", "file_url": "http://private/?api_key=secret"}},
 		{"id": 2, "channel": 99, "start_time": now.Add(-2 * time.Hour), "end_time": now.Add(-time.Hour), "custom_properties": map[string]any{"status": "completed", "remux_success": true, "program": map[string]any{"title": "Hidden recording"}}},
 	}
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +118,21 @@ func TestDVRIdentityPermissionsIsolationAndRecording(t *testing.T) {
 	if strings.Contains(list.Body.String(), "Hidden recording") || !strings.Contains(list.Body.String(), "Football") {
 		t.Fatal("lineup filtering failed")
 	}
+	var catalog struct {
+		Items []struct {
+			AiringID string `json:"airing_id"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(list.Body.Bytes(), &catalog); err != nil || len(catalog.Items) != 1 || catalog.Items[0].AiringID != "0123456789abcdef0123456789abcdef" {
+		t.Fatal("validated recording owner was not exposed")
+	}
+	properties := records[0]["custom_properties"].(map[string]any)
+	properties["watch_now_airing"] = "arbitrary-upstream-marker"
+	invalidOwner := call("GET", "/api/dvr/recordings", "", false, cookie)
+	check(invalidOwner, 200)
+	if strings.Contains(invalidOwner.Body.String(), "airing_id") || strings.Contains(invalidOwner.Body.String(), "arbitrary-upstream-marker") {
+		t.Fatal("unvalidated upstream airing metadata was exposed")
+	}
 	other, _ := loginViewerAs(t, handler, "viewer", "top-secret", "192.0.2.6:1234")
 	check(call("GET", "/api/dvr/recordings", "", false, other), 403)
 	check(call("DELETE", "/api/dvr/recordings/2", "", true, cookie), 404)
@@ -128,7 +143,20 @@ func TestDVRIdentityPermissionsIsolationAndRecording(t *testing.T) {
 	}
 	check(call("GET", "/api/dvr/recordings/1/download", "", false, cookie), 409)
 	body, _ := json.Marshal(map[string]any{"channel_id": "41", "start": fake.programs[0].Start, "end": fake.programs[0].End})
-	check(call("POST", "/api/dvr/recordings", string(body), true, cookie), 201)
+	created := call("POST", "/api/dvr/recordings", string(body), true, cookie)
+	check(created, 201)
+	var creation struct {
+		Recording struct {
+			AiringID string `json:"airing_id"`
+		} `json:"recording"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &creation); err != nil {
+		t.Fatal(err)
+	}
+	wantOwner := programResultID(dispatcharr.GuideProgram{ChannelID: "41", Title: fake.programs[0].Title, Start: fake.programs[0].Start, End: fake.programs[0].End})
+	if creation.Recording.AiringID != wantOwner {
+		t.Fatal("created recording did not return its original airing identifier")
+	}
 	check(call("POST", "/api/dvr/recordings", string(body), true, cookie), 200)
 	if writes != 1 {
 		t.Fatal("duplicate created or unauthorized mutation sent")

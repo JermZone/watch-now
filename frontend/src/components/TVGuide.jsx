@@ -5,6 +5,8 @@ import Modal from './Modal';
 import { airingTime } from './DVR';
 import LoadingIndicator from './LoadingIndicator';
 import ChannelArtwork from './ChannelArtwork';
+import LiveRecordingControl from './LiveRecordingControl';
+import { buildGuideRecordingIndex, guideRecordingStatus, guideRecordingLabel } from './guideRecordingStatus';
 
 const HOUR = 3600000;
 const GRID_ROW_HEIGHT = 89;
@@ -70,7 +72,7 @@ export function currentTitleStart(rows, day, now) {
   return start;
 }
 
-export default function TVGuide({ active, suspended = false, categories, channels, isMobile, onExpired, onWatch, onRecord, channelID, onChannelChange }) {
+export default function TVGuide({ active, suspended = false, categories, channels, isMobile, onExpired, onWatch, onWatchRecording, onRecord, dvrEnabled = false, csrfToken, channelID, onChannelChange, recordings = [], recordingsAvailable = false, recordingsBusy = false, onRefreshRecordings }) {
   const [listStart, setStart] = useSavedState('guideStart', currentWindow);
   const [gridDay, setGridDay] = useSavedState('guideDay', () => midnight(Date.now()));
   const [sliderStart, setSliderStart] = useState(listStart);
@@ -80,6 +82,28 @@ export default function TVGuide({ active, suspended = false, categories, channel
   const [retry, setRetry] = useState(0);
   const [details, setDetails] = useState(null);
   const [clock, setClock] = useState(Date.now);
+  const catalogBusy = useRef(recordingsBusy);
+  catalogBusy.current = recordingsBusy;
+  const recordingIndex = useMemo(() => buildGuideRecordingIndex(dvrEnabled && recordingsAvailable ? recordings : []), [dvrEnabled, recordingsAvailable, recordings]);
+  const recordingStatus = (program) => guideRecordingStatus(program, recordingIndex, clock);
+  const recordingDot = (status) => status && <span className="tv-guide-recording-dot" data-recording-status={status} aria-hidden="true" />;
+  useEffect(() => {
+    if (!active || suspended || !dvrEnabled || !onRefreshRecordings) return undefined;
+    let alive = true, pending = false;
+    const refresh = async () => {
+      if (!alive || pending || catalogBusy.current || document.visibilityState === 'hidden') return;
+      pending = true;
+      try { await onRefreshRecordings(); }
+      catch { /* The shared DVR catalog handles access errors; Guide stays usable. */ }
+      finally { pending = false; }
+    };
+    void refresh();
+    const timer = setInterval(refresh, 30000);
+    const resume = () => { if (document.visibilityState === 'visible') void refresh(); };
+    document.addEventListener('visibilitychange', resume);
+    return () => { alive = false; clearInterval(timer); document.removeEventListener('visibilitychange', resume); };
+  }, [active, suspended, dvrEnabled, onRefreshRecordings]);
+
   const requestRef = useRef(null);
   const generation = useRef(0);
   const paging = useRef(false);
@@ -108,9 +132,10 @@ export default function TVGuide({ active, suspended = false, categories, channel
       setViewport((value) => ({ ...value, top: gridRef.current.scrollTop }));
     }
   }, [suspended]);
-  const watch = (channel) => {
+  const watch = (channel, recording, position) => {
     if (gridRef.current) scrollPosition.current = { left: gridRef.current.scrollLeft, top: gridRef.current.scrollTop };
-    onWatch(channel);
+    if (recording) onWatchRecording?.(channel, recording, position);
+    else onWatch(channel);
   };
   useEffect(() => { try { localStorage.setItem('watch-now-guide-layout', layout); } catch { /* Storage is optional. */ } }, [layout]);
   const syncScrollbar = () => {
@@ -292,7 +317,19 @@ export default function TVGuide({ active, suspended = false, categories, channel
     if (target) { event.preventDefault(); target.focus(); }
   };
   const resetNow = () => { setDetails(null); setSliderStart(currentWindow()); setStart(currentWindow()); setGridDay(midnight(Date.now())); gridScrollPending.current = true; if (!agenda) scrollToDay(); setRetry((value) => value + 1); };
-  const programButton = (program, style) => <button data-airing data-start={Date.parse(program.start)} style={style} className={`tv-guide-program${Date.parse(program.start) <= clock && Date.parse(program.end) > clock ? ' is-current' : ''}`} title={program.title} key={program.id} onClick={() => setDetails(program)} type="button" aria-label={`${program.channel.name}, ${program.title}, ${airingTime(program)}`}><strong>{program.title || 'Untitled program'}</strong><span>{dateLabel(program.start)} · {timeLabel(program.start)} – {localDate(program.start) !== localDate(program.end) ? `${dateLabel(program.end)} · ` : ''}{timeLabel(program.end)}</span>{program.subtitle && <span>{program.subtitle}</span>}</button>;
+  const programButton = (program, style) => {
+    const status = recordingStatus(program), label = guideRecordingLabel(status);
+    return <button data-airing data-start={Date.parse(program.start)} style={style} className={`tv-guide-program${Date.parse(program.start) <= clock && Date.parse(program.end) > clock ? ' is-current' : ''}${status ? ' has-guide-recording' : ''}`} title={[program.title, label].filter(Boolean).join(' · ')} key={program.id} onClick={() => setDetails(program)} type="button" aria-label={`${program.channel.name}, ${program.title}, ${airingTime(program)}${label ? `, ${label}` : ''}`}><strong>{program.title || 'Untitled program'}</strong><span>{dateLabel(program.start)} · {timeLabel(program.start)} – {localDate(program.start) !== localDate(program.end) ? `${dateLabel(program.end)} · ` : ''}{timeLabel(program.end)}</span>{program.subtitle && <span>{program.subtitle}</span>}{recordingDot(status)}</button>;
+  };
+  const conflictButton = (programs, channel, style) => {
+    const status = programs.map(recordingStatus).reduce((result, value) => result === 'recording' || value === 'recording' ? 'recording' : result || value, '');
+    const label = guideRecordingLabel(status), program = programs[0];
+    return <button className={`tv-guide-program${status ? ' has-guide-recording' : ''}`} data-airing data-start={Date.parse(program.start)} key={program.id} style={style} type="button" title={label ? `${programs.length} overlapping listings · ${label}` : undefined} aria-label={`${channel.name}, ${programs.length} overlapping listings${label ? `, ${label}` : ''}`} onClick={() => setDetails({ conflicts: programs, channel, title: 'Overlapping listings' })}><strong>{program.title}</strong><span>{programs.length} overlapping listings</span><span>Tap to choose a program</span>{recordingDot(status)}</button>;
+  };
+  const conflictChoice = (program, index) => {
+    const status = recordingStatus(program), label = guideRecordingLabel(status);
+    return <button className={`quiet-button${status ? ' has-guide-recording' : ''}`} key={index} type="button" title={[program.title, label].filter(Boolean).join(' · ')} aria-label={`${program.title}, ${airingTime(program)}${label ? `, ${label}` : ''}`} onClick={() => setDetails(program)}><strong>{program.title}</strong><span>{airingTime(program)}</span>{program.subtitle && <span>{program.subtitle}</span>}{recordingDot(status)}</button>;
+  };
 
   const layoutControl = <div className="tv-guide-layout" role="group" aria-label="Guide layout"><button type="button" aria-pressed={!agenda} onClick={() => setLayout('grid')}>Grid</button><button type="button" aria-pressed={agenda} onClick={() => setLayout('agenda')}>List</button></div>;
 
@@ -326,7 +363,7 @@ export default function TVGuide({ active, suspended = false, categories, channel
           <div className="tv-guide-channel" role="group" aria-label={`${row.channel.channel_number || ''} ${row.channel.name}`.trim()} title={row.channel.name}>{agenda ? <><strong>{row.channel.channel_number} {row.channel.name}</strong><button onClick={() => watch(row.channel)} type="button">Watch live</button></> : <button className="tv-guide-logo-button" aria-label={`Options for ${row.channel.name}`} aria-haspopup="dialog" onClick={() => setDetails({ channelOnly: true, channel: row.channel, title: row.channel.name })} type="button"><ChannelArtwork channel={row.channel} categoryID={categoryID} size="compact" /></button>}</div>
           <div className="tv-guide-airings" style={agenda ? undefined : { height: `${laneCount * laneHeight}px` }}>
             {!row.programs.length && <p className="section-hint">No listings supplied for this time.</p>}
-            {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, programs, lane, left, width }) => programs.length === 1 ? programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * laneHeight}px` }) : <button className="tv-guide-program" data-airing data-start={Date.parse(program.start)} key={program.id} style={{ left: `${left}%`, width: `${width}%`, top: 0 }} type="button" aria-label={`${row.channel.name}, ${programs.length} overlapping listings`} onClick={() => setDetails({ conflicts: programs, channel: row.channel, title: 'Overlapping listings' })}><strong>{program.title}</strong><span>{programs.length} overlapping listings</span><span>Tap to choose a program</span></button>)}
+            {agenda ? row.programs.map((program) => programButton(program)) : lanes.map(({ program, programs, lane, left, width }) => programs.length === 1 ? programButton(program, { left: `${left}%`, width: `${width}%`, top: `${lane * laneHeight}px` }) : conflictButton(programs, row.channel, { left: `${left}%`, width: `${width}%`, top: 0 }))}
             {!agenda && clock >= displayStart && clock < end && <span className="tv-guide-now" aria-hidden="true" style={{ left: `${(clock - displayStart) / (end - displayStart) * 100}%` }} />}
           </div>
         </div>;
@@ -338,10 +375,17 @@ export default function TVGuide({ active, suspended = false, categories, channel
     {state.has_more && (agenda || batchLimit) && <button ref={moreRef} disabled={state.loading} onClick={() => loadMore()} type="button">{state.loading ? 'Loading channels…' : batchLimit ? 'Next channels' : 'Load more channels'}</button>}
     {state.items.length > 0 && !state.has_more && <p className="section-hint">End of channels in this view. Choose another day or time to browse more schedule.</p>}
     {details && active && <Modal key={details.id || (details.conflicts ? 'conflicts' : 'channel')} labelledBy="guide-airing-title" onClose={() => setDetails(null)}>
-      <h2 id="guide-airing-title">{details.title}</h2>{details.conflicts ? <><p>The guide supplies conflicting times for {details.channel.name}. Choose a listing to see its details.</p><div className="guide-conflict-list">{details.conflicts.map((program, index) => <button key={index} type="button" onClick={() => setDetails(program)}><strong>{program.title}</strong><span>{airingTime(program)}</span>{program.subtitle && <span>{program.subtitle}</span>}</button>)}</div></> : details.channelOnly ? <p>Watch this channel’s current live broadcast.</p> : <><p>{details.channel.name}</p><p>{airingTime(details)}</p></>}{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}
-      {(details.channelOnly || (Date.parse(details.start) <= clock && Date.parse(details.end) > clock)) && <button onClick={() => { watch(details.channel); setDetails(null); }} type="button">Watch live</button>}
-      {onRecord && Date.parse(details.end) > clock && <button onClick={() => { setDetails(null); onRecord(details); }} type="button">Record</button>}
-      <button onClick={() => setDetails(null)} type="button">Close</button>
+      <h2 id="guide-airing-title">{details.title}</h2>{details.conflicts ? <><p>The guide supplies conflicting times for {details.channel.name}. Choose a listing to see its details.</p><div className="guide-conflict-list">{details.conflicts.map(conflictChoice)}</div></> : details.channelOnly ? <p>Watch this channel’s current live broadcast.</p> : <><p>{details.channel.name}</p><p>{airingTime(details)}</p></>}{details.subtitle && <h3>{details.subtitle}</h3>}{details.description && <p>{details.description}</p>}
+      <div className="guide-detail-actions">
+        {(details.channelOnly || (Date.parse(details.start) <= clock && Date.parse(details.end) > clock)) ? <LiveRecordingControl
+          channel={details.channel} currentProgram={details.channelOnly ? undefined : details}
+          enabled={dvrEnabled} interactionActive={!suspended} presentation="guide" csrfToken={csrfToken} onExpired={onExpired}
+          onWatchLive={() => { watch(details.channel); setDetails(null); }}
+          onWatchRecording={(recording, position) => { watch(details.channel, recording, position); setDetails(null); }}
+          onRecord={!details.channelOnly && onRecord ? () => { setDetails(null); onRecord(details); } : undefined}
+        /> : onRecord && Date.parse(details.end) > clock && <button className="quiet-button" onClick={() => { setDetails(null); onRecord(details); }} type="button">Record</button>}
+        <button className="quiet-button" onClick={() => setDetails(null)} type="button">Close</button>
+      </div>
     </Modal>}
   </section>;
 }

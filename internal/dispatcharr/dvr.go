@@ -63,16 +63,18 @@ type DVRIdentity struct {
 	Access   string
 }
 type Recording struct {
-	ID          string    `json:"id"`
-	ChannelID   string    `json:"channel_id"`
-	Title       string    `json:"title"`
-	Subtitle    string    `json:"subtitle,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Start       time.Time `json:"start"`
-	End         time.Time `json:"end"`
-	Status      string    `json:"status"`
-	Playable    bool      `json:"playable"`
-	AiringID    string    `json:"-"`
+	ID             string    `json:"id"`
+	ChannelID      string    `json:"channel_id"`
+	Title          string    `json:"title"`
+	Subtitle       string    `json:"subtitle,omitempty"`
+	Description    string    `json:"description,omitempty"`
+	Start          time.Time `json:"start"`
+	End            time.Time `json:"end"`
+	Status         string    `json:"status"`
+	Playable       bool      `json:"playable"`
+	CanWatchActive bool      `json:"can_watch_active"`
+	ReadyFile      bool      `json:"-"`
+	AiringID       string    `json:"-"`
 }
 type RecordingRequest struct {
 	ChannelID  string              `json:"channel"`
@@ -97,6 +99,7 @@ type recordingWire struct {
 		RecordingProperties
 		Status       string `json:"status"`
 		RemuxSuccess bool   `json:"remux_success"`
+		FileURL      string `json:"file_url"`
 	} `json:"custom_properties"`
 }
 
@@ -117,7 +120,7 @@ func (r recordingWire) narrow() (Recording, error) {
 			status = "scheduled"
 		}
 	}
-	return Recording{ID: string(r.ID), ChannelID: string(r.Channel), Title: firstGuideText([]string{r.Properties.Program.Title, "Recording"}, 160), Subtitle: firstGuideText([]string{r.Properties.Program.Subtitle}, 160), Description: firstGuideText([]string{r.Properties.Program.Description}, 1024), Start: r.Start, End: r.End, Status: status, Playable: status == "recorded", AiringID: firstGuideText([]string{r.Properties.AiringID}, 64)}, nil
+	return Recording{ID: string(r.ID), ChannelID: string(r.Channel), Title: firstGuideText([]string{r.Properties.Program.Title, "Recording"}, 160), Subtitle: firstGuideText([]string{r.Properties.Program.Subtitle}, 160), Description: firstGuideText([]string{r.Properties.Program.Description}, 1024), Start: r.Start, End: r.End, Status: status, Playable: status == "recorded", CanWatchActive: status == "recording", ReadyFile: r.Properties.FileURL == "/api/channels/recordings/"+string(r.ID)+"/file/", AiringID: firstGuideText([]string{r.Properties.AiringID}, 64)}, nil
 }
 func ValidDVRKey(key string) bool {
 	if len(key) < 1 || len(key) > 512 {
@@ -254,6 +257,7 @@ func (c *Client) DVRRecordings(ctx context.Context, key string) ([]Recording, er
 		if err != nil {
 			return nil, err
 		}
+		item.ReadyFile = c.recordingFileReady(r.Properties.FileURL, item.ID)
 		result = append(result, item)
 	}
 	return result, nil
@@ -267,7 +271,12 @@ func (c *Client) DVRCreate(ctx context.Context, key string, input RecordingReque
 	if err != nil {
 		return Recording{}, err
 	}
-	return raw.narrow()
+	item, err := raw.narrow()
+	if err != nil {
+		return Recording{}, err
+	}
+	item.ReadyFile = c.recordingFileReady(raw.Properties.FileURL, item.ID)
+	return item, nil
 }
 func (c *Client) DVRAction(ctx context.Context, key, id, action string) error {
 	if !mediaIDPattern.MatchString(id) {

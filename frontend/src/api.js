@@ -165,3 +165,14 @@ export const createShare = (target, csrfToken, { signal } = {}) => request('/api
 export const resolveShare = (token, csrfToken, { signal } = {}) => request('/api/share/resolve', {
   method: 'POST', headers: { 'X-CSRF-Token': csrfToken }, body: JSON.stringify({ token }), signal,
 });
+
+// Active playback uses one browser session for its manifest and segment requests.
+export const createDVRActivePlayback = (id, csrfToken, { signal } = {}) => request(`/api/dvr/recordings/${encodeURIComponent(id)}/active-playback`, {
+  method: 'POST', signal, headers: { 'X-CSRF-Token': csrfToken },
+});
+export const getDVRActivePlaybackStatus = (path, { signal } = {}) => request(path, { signal, cache: 'no-store' });
+export const stopDVRActivePlayback = (path, csrfToken, { keepalive = false } = {}) => request(path, {
+  method: 'POST', keepalive, headers: { 'X-CSRF-Token': csrfToken },
+});
+
+export const getChannelRecordings = (channelID, { signal } = {}) => request(channelPath(channelID, 'recordings'), { signal, cache: 'no-store' });

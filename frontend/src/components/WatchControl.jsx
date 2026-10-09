@@ -27,9 +27,11 @@ const WatchControl = ({
   downloadLoading = false, onDownload, onStop, onVLC, onWatch,
   onDelete, deleteLoading = false,
   playbackLoading = false, playing = false, selectionKey = '', vlcLoading = false,
-  watchLabel = 'Watch', shareTarget,
+  watchLabel = 'Watch', shareTarget, onMenuWatch, menuWatchLabel = 'Watch in Browser', extraActions = [],
+  showMenuWatch = true, showVLC = true, watchHasPopup,
 }) => {
   const sharing = useContext(Sharing);
+  const hasMenu = Boolean(showMenuWatch || showVLC || extraActions.length > 0 || onDownload || onDelete || (sharing?.enabled && shareTarget));
   const [sharingOpen, setSharingOpen] = useState(false);
   const [open, setOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState(null);
@@ -42,9 +44,16 @@ const WatchControl = ({
 
   useEffect(() => {
     pendingSelectionRef.current = null;
+    setOpen(false); setMenuPosition(null);
     setSharingOpen(false);
     setShowVLCExplanation(false);
   }, [selectionKey]);
+
+  useEffect(() => {
+    if (hasMenu) return;
+    if (open) rootRef.current?.querySelector('.watch-primary')?.focus();
+    setOpen(false); setMenuPosition(null);
+  }, [hasMenu]);
 
   useEffect(() => {
     if (!playing) return;
@@ -143,6 +152,8 @@ const WatchControl = ({
 
   const choose = (action) => {
     setOpen(false);
+    // Preserve the opener when a menu action replaces its focused item with a dialog.
+    triggerRef.current?.focus();
     action?.();
   };
 
@@ -175,16 +186,17 @@ const WatchControl = ({
   };
 
   return (
-    <div className={`watch-control ${playing ? 'is-playing' : ''}`} ref={rootRef}>
+    <div className={`watch-control ${playing ? 'is-playing' : !hasMenu ? 'is-single-action' : ''}`} ref={rootRef}>
       <button
         className={`primary-button watch-primary ${playing ? 'is-stop' : ''}`}
         disabled={playbackLoading}
+        aria-haspopup={!playing ? watchHasPopup : undefined}
         onClick={playing ? onStop : onWatch}
         type="button"
       >
         {playbackLoading ? 'Preparing…' : playing ? 'Stop' : watchLabel}
       </button>
-      {!playing && (<button
+      {!playing && hasMenu && (<button
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Watch options"
@@ -195,7 +207,7 @@ const WatchControl = ({
       >
         <span aria-hidden="true" className="selector-chevron" />
       </button>)}
-      {open && !playing && (
+      {open && !playing && hasMenu && (
 		<div
           className={`watch-menu is-${menuPosition?.placement || 'below'}`}
           ref={menuRef}
@@ -204,10 +216,11 @@ const WatchControl = ({
             ? { left: menuPosition.left, maxHeight: menuPosition.maxHeight, top: menuPosition.top }
             : { left: 0, top: 0, visibility: 'hidden' }}
         >
-		  <button disabled={playbackLoading || playing} onClick={() => choose(onWatch)} role="menuitem" type="button">Watch in Browser</button>
-			<button disabled={vlcLoading || !onVLC} onClick={() => choose(isAppleMobile() ? requestVLC : onVLC)} role="menuitem" type="button">
-			  {vlcLoading ? 'Preparing VLC…' : isAppleMobile() ? 'Open in VLC' : 'Watch in VLC'}
-			</button>
+		  {showMenuWatch && <button disabled={playbackLoading || playing} onClick={() => choose(onMenuWatch || onWatch)} role="menuitem" type="button">{menuWatchLabel}</button>}
+          {extraActions.map(action => <button key={action.label} aria-label={action.label} aria-description={action.description} disabled={playbackLoading || action.disabled} onClick={() => choose(action.onSelect)} role="menuitem" type="button">{action.label}{action.description && <span className="watch-menu-description">{action.description}</span>}</button>)}
+          {showVLC && <button disabled={vlcLoading || !onVLC} onClick={() => choose(isAppleMobile() ? requestVLC : onVLC)} role="menuitem" type="button">
+            {vlcLoading ? 'Preparing VLC…' : isAppleMobile() ? 'Open in VLC' : 'Watch in VLC'}
+          </button>}
           {onDownload && <button disabled={downloadLoading} onClick={() => choose(onDownload)} role="menuitem" type="button">
             {downloadLoading ? 'Preparing download…' : 'Download'}
           </button>}

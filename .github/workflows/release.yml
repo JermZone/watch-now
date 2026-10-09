@@ -19,11 +19,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.2'
           cache: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24.21.0'
+      - name: Reject an existing release or versioned image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/check-release-target.py "$RELEASE_TAG"
       - name: Verify release and test
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -44,6 +49,8 @@ jobs:
           python3 scripts/test-compose.py
           python3 scripts/test-latest-image.py
           python3 scripts/test-release-consistency.py
+      - name: Prepare and check customer release assets before publication
+        run: python3 scripts/prepare-release.py prepare "$VERSION" --notes-file "$RUNNER_TEMP/watch-now-release-notes.md"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Build candidate
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -70,6 +77,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Recheck immutable targets immediately before publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/check-release-target.py "$RELEASE_TAG"
       - name: Publish verified image
         id: publish
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -84,32 +96,17 @@ jobs:
             VERSION=${{ env.VERSION }}
             REVISION=${{ github.sha }}
             SOURCE_URL=https://github.com/JermZone/watch-now/tree/${{ github.ref_name }}
-      - name: Assemble release assets
+      - name: Finalize checked assets with the exact published digest
         env:
           IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
-        run: |
-          set -euo pipefail
-          mkdir -p release/install
-
-          git archive --format=tar.gz --prefix="watch-now-$VERSION/" -o "release/watch-now-$VERSION.tar.gz" HEAD
-
-          cp compose.yaml release/install/
-          cp .env.example release/install/
-          cp README.md release/install/
-          cp LICENSE release/install/
-          mkdir -p release/install/docs
-          cp docs/installation.md docs/dvr.md docs/tv-guide.md docs/share-navigation.md release/install/docs/
-          cp compose.dvr.yaml compose.dvr-master.yaml release/install/
-
-          (
-            cd release/install
-            zip -r "../watch-now-$VERSION-install.zip" .
-          )
-          rm -rf release/install
-
-          printf 'ghcr.io/jermzone/watch-now@%s\n' "$IMAGE_DIGEST" > release/image-digest.txt
-          cd release
-          sha256sum watch-now-*.tar.gz watch-now-*-install.zip image-digest.txt > SHA256SUMS
+        run: python3 scripts/prepare-release.py finalize "$VERSION" --digest "$IMAGE_DIGEST"
+      - name: Scan the exact published image before release or latest promotion
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # 0.36.0
+        with:
+          image-ref: ghcr.io/jermzone/watch-now@${{ steps.publish.outputs.digest }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
+          ignore-unfixed: false
       - name: Publish GitHub release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -121,16 +118,20 @@ jobs:
             prerelease=(--prerelease)
           fi
 
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" release/* --clobber
-          else
-            gh release create "$RELEASE_TAG" release/* \
-              --verify-tag \
-              --title "Watch Now $VERSION" \
-              --generate-notes \
-              "${prerelease[@]}"
-          fi
+          gh release create "$RELEASE_TAG" release/* \
+            --verify-tag \
+            --title "Watch Now $VERSION" \
+            --notes-file "$RUNNER_TEMP/watch-now-release-notes.md" \
+            "${prerelease[@]}"
+      - name: Record safe recovery after partial image publication
+        if: ${{ failure() && steps.publish.outputs.digest != '' }}
+        env:
+          IMAGE_DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          echo "Version $VERSION was consumed by immutable image $IMAGE_DIGEST. Do not overwrite or rerun publication for this version. Correct the failure and prepare a new version; latest was not promoted by this failed release run." >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: ${{ always() }}
         with:
           name: release-manifest
           path: release/
+          if-no-files-found: ignore
