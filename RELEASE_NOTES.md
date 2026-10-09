@@ -1,5 +1,26 @@
 # Watch Now release notes
 
+## 1.5.1 — iPhone recording menu fix
+
+Fix an iPhone issue where tapping **Stop recording** in **Recording options**
+could dismiss the menu without opening the confirmation. **Extend 30 minutes**
+uses the same corrected touch handling. Both actions still require confirmation;
+keyboard navigation, Escape, Tab and outside-tap dismissal remain supported.
+
+No configuration changes or data migration are required. Preserve your existing
+settings, secrets and sharing storage when upgrading; restarting signs viewers
+out. Keep the previous image/configuration for rollback.
+
+The maintainer confirmed the iPhone fix on Loki and accepted Docky QA. Regression
+tests cover touch focus changes and both confirmation flows; all 495 frontend
+tests, Go tests/vet, frontend and Docker builds passed for the accepted fix.
+See [release preparation](docs/release-readiness-1.5.1.md) for evidence and scope.
+
+Linux AMD64 remains the validated image target. Existing playback limitations,
+including reopening a finished recording in VLC after temporary segments become
+unavailable, deferred home-screen PiP and
+[issue #11](https://github.com/JermZone/watch-now/issues/11), remain unchanged.
+
 ## 1.5.0 — Active recording playback in VLC
 
 Open recordings in VLC while they are still recording, with the same starting

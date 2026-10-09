@@ -30,8 +30,9 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 
 ## Releases
 
-This documentation describes **Watch Now 1.5.0**, adding VLC playback of active
-recordings, beginning/live choices and corrected iPhone browser startup.
+This documentation describes **Watch Now 1.5.1**, fixing iPhone taps on
+**Stop recording** and **Extend 30 minutes** in the Recording options menu.
+Active-recording VLC playback and beginning/live choices remain supported.
 See the [release notes](RELEASE_NOTES.md). Download production assets only from
 [published releases](https://github.com/JermZone/watch-now/releases), using their
 verified image digests; source version metadata does not announce availability.
@@ -89,8 +90,8 @@ Watch Now to the internet.
 The maintainer reported successful real iPhone recording playback through
 completion, including pause and rewind. This is accepted feature feedback,
 not a claim that every device, codec or the final public image has been tested.
-See [release preparation](docs/release-readiness-1.5.0.md) for the evidence and
-remaining checks.
+See [1.5.0 feature evidence](docs/release-readiness-1.5.0.md) and
+[1.5.1 release preparation](docs/release-readiness-1.5.1.md) for validation details.
 
 To add the icon on iPhone/iPad, open Watch Now in Safari and choose
 **Share → Add to Home Screen**. Remove and re-add an older shortcut if its icon
