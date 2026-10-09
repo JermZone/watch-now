@@ -109,10 +109,10 @@ file. Browser support for its container and codecs still applies. If it cannot
 play, a clear error lets you return to finished DVR and use VLC or download.
 
 Download and recording sharing are available for playable **finished**
-recordings. This development prototype also offers VLC for active recordings
+recordings. VLC is also available for active recordings
 in **DVR → Recording → Watch options → Watch in VLC**, with beginning/live
 choices; see
-[the prototype notes](active-recording-vlc.md). A Live TV share link selects the channel, not a captured timestamp;
+[active recording VLC](active-recording-vlc.md). A Live TV share link selects the channel, not a captured timestamp;
 Live TV VLC offers the same beginning/live choices when an active recording is
 available; otherwise it uses the ordinary live stream.
 

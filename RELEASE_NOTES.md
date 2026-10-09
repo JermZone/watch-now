@@ -1,5 +1,46 @@
 # Watch Now release notes
 
+## 1.5.0 — Active recording playback in VLC
+
+Open recordings in VLC while they are still recording, with the same starting
+choices as browser playback.
+
+- Choose **Watch from Beginning** or **Watch Live** before opening an active
+  recording in VLC from DVR or Live TV Browse/Search.
+- Fix browser **Watch from Beginning** starting at the live point on iPhone.
+- Move **Extend 30 minutes** and **Stop recording** into a separate
+  **Recording options** menu, keeping confirmation prompts.
+
+Beginning means the earliest captured footage. Closing VLC leaves recording
+running. Without an active recording, Live TV VLC still opens the ordinary stream.
+
+### Expectations and upgrade
+
+If temporary segments become unavailable after completion or a long pause, reopen
+the finished recording in VLC. Automatic transfer to the finished file with
+position restoration is not supported. Download and recording sharing still
+require a playable finished recording. See [active recording VLC](docs/active-recording-vlc.md).
+
+No configuration changes or data migration are required for an existing DVR setup.
+Preserve service names, ports, secrets and sharing storage; restarting signs viewers
+out. Retain the previous image/configuration for rollback. Use the verified image
+from this release after publication; production upgrade is a separate action.
+
+Dispatcharr 0.32.0 is the validated active-recording baseline, with capabilities
+checked rather than a version whitelist. Linux AMD64 remains the validated image
+target. Codec/device limits, no transcoding, deferred home-screen PiP and
+[issue #11](https://github.com/JermZone/watch-now/issues/11) remain unchanged.
+
+### Validation
+
+The accepted source passed 493 frontend tests, Go checks, frontend/container
+builds and QA deployment checks. The maintainer reported working desktop/iPhone
+VLC and confirmed the iPhone browser fix, then accepted the QA candidate.
+These reports do not establish a complete device, casting or completion/pause
+matrix on the public image. [Release preparation](docs/release-readiness-1.5.0.md)
+records scope and remaining checks; verified distribution evidence is added to
+the GitHub release after publication.
+
 ## 1.4.0 — Watch while recording and live pause
 
 Watch Now 1.4.0 adds playback through active recordings and brings the recording

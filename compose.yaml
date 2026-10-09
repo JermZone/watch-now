@@ -1,6 +1,6 @@
 services:
   watch-now:
-    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.4.0}
+    image: ${NOW_IMAGE:-ghcr.io/jermzone/watch-now:1.5.0}
     restart: unless-stopped
     ports:
       - "${NOW_HOST_BIND:-127.0.0.1}:${NOW_HOST_PORT:-9192}:8080"

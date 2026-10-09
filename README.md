@@ -24,14 +24,14 @@ The screenshot uses sample channels and guide data, not a real viewer's lineup.
 - Open **Guide** beside Browse/Search for Grid or List, with dates up to seven days where listings exist. Solid red dots identify scheduled and active recordings. See [TV Guide](docs/tv-guide.md).
 - Use **Watch & Record** on a current programme, then pause, rewind and **Go Live** within captured footage. An existing recording offers **Watch from Beginning** or **Watch Live**. See [recording and live pause](docs/watch-while-recording.md).
 - Browse Movies and Series, watch supported formats in the browser, or use VLC and downloads.
-- Connect optional DVR to browse, schedule and manage recordings according to the viewer's permissions. Finished recordings offer Watch, download, VLC and sharing. See [DVR setup](docs/dvr.md).
+- Connect optional DVR to browse, schedule and manage recordings according to the viewer's permissions. Active recordings offer browser and VLC playback; finished recordings also offer download and sharing. See [DVR setup](docs/dvr.md).
 - Share authorized channels, movies, episodes and finished recordings; restore navigation on refresh and use focused playback views with **Details** below the title. The supplied Compose setup retains the sharing key automatically. See [sharing](docs/share-navigation.md).
 - Run one non-root container with a Go backend and compiled React interface: no database or transcoder. Sessions and catalogs remain in memory.
 
 ## Releases
 
-This documentation describes **Watch Now 1.4.0**, with recording playback,
-live pause through an active capture, recording markers and playback controls.
+This documentation describes **Watch Now 1.5.0**, adding VLC playback of active
+recordings, beginning/live choices and corrected iPhone browser startup.
 See the [release notes](RELEASE_NOTES.md). Download production assets only from
 [published releases](https://github.com/JermZone/watch-now/releases), using their
 verified image digests; source version metadata does not announce availability.
@@ -89,7 +89,7 @@ Watch Now to the internet.
 The maintainer reported successful real iPhone recording playback through
 completion, including pause and rewind. This is accepted feature feedback,
 not a claim that every device, codec or the final public image has been tested.
-See [release preparation](docs/release-readiness-1.4.0.md) for the evidence and
+See [release preparation](docs/release-readiness-1.5.0.md) for the evidence and
 remaining checks.
 
 To add the icon on iPhone/iPad, open Watch Now in Safari and choose
@@ -99,11 +99,13 @@ feature. The shortcut does not add offline playback.
 
 ### VLC and casting
 
-Live channels, movies, episodes and playable finished recordings offer VLC
+Live channels, movies, episodes and available active/finished recordings offer VLC
 through their Watch menu. Desktop **Watch in VLC** downloads a temporary playlist;
 Apple mobile **Open in VLC** hands off to the separately installed app.
-Live channel VLC plays the ordinary live stream, not the active recording's
-pause/rewind buffer.
+For an active recording in DVR or Live TV Browse/Search, choose **Watch from
+Beginning** or **Watch Live**. Without an active recording, Live TV VLC opens the
+ordinary live stream. See [active recording VLC](docs/active-recording-vlc.md)
+for preparation, completion and long-pause limits.
 
 Watch Now stops browser playback before external playback begins. Stop or switch
 the external stream inside VLC. Sign-out revokes the session's handoffs.
