@@ -14,6 +14,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Configure public Docker Hub mirror
+        # Preserve pinned Dockerfile digests; avoid shared-runner anonymous pull limits.
+        run: |
+          sudo python3 - <<'PYTHON'
+          import json
+          from pathlib import Path
+          path = Path('/etc/docker/daemon.json')
+          config = json.loads(path.read_text()) if path.exists() else {}
+          mirror = 'https://mirror.gcr.io'
+          config['registry-mirrors'] = [mirror] + [url for url in config.get('registry-mirrors', []) if url != mirror]
+          path.parent.mkdir(parents=True, exist_ok=True)
+          path.write_text(json.dumps(config) + '\n')
+          PYTHON
+          sudo systemctl restart docker
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.27.2'

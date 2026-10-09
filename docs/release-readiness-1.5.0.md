@@ -15,8 +15,10 @@ QA version: `qa-active-vlc-414bde2`; image identity:
 This release adds authenticated active-recording HLS playback for VLC,
 beginning/live choices in DVR and Live TV Browse/Search, a separate manager-only
 recording menu with confirmations, and native browser startup correction for
-beginning selection on iPhone. Release preparation changes documentation and
-version metadata only; runtime code matches the accepted candidate.
+beginning selection on iPhone. Release preparation changes documentation, version metadata and CI image
+retrieval only; runtime code matches the accepted candidate. After Docker Hub
+rate limits blocked main CI, CI/release builds were configured to try the public
+Docker Hub mirror while retaining every pinned Dockerfile image digest.
 No dependency upgrade, new service, transcoding, persistent session/catalog,
 Dispatcharr database/filesystem access or production deployment is included.
 
