@@ -62,6 +62,7 @@ export default function RecordingHLSPlayer({ recordingID, csrfToken, onFatalErro
     let restore;
     let started = false;
     let initialApplied = false;
+    let usingNativeHLS = false;
     let captureEnded = false;
     let liveDelay = DEFAULT_LIVE_DELAY;
     let deliberatePause = false;
@@ -161,6 +162,10 @@ export default function RecordingHLSPlayer({ recordingID, csrfToken, onFatalErro
     const ready = (event) => {
       if (!current() || mode === 'waiting' || video.error) return;
       const mediaReady = video.readyState >= 2 || ['canplay', 'playing'].includes(event?.type);
+      // Native HLS can expose a zero currentTime and seekable range at metadata
+      // time, then choose its live-edge default when decoded media becomes ready.
+      // Do not consume the one-time starting position during that earlier phase.
+      if (usingNativeHLS && mode === 'hls' && !initialApplied && !mediaReady) { updateRange(); return; }
       if (restore) {
         const saved = restore;
         try {
@@ -170,7 +175,8 @@ export default function RecordingHLSPlayer({ recordingID, csrfToken, onFatalErro
             const desired = saved.initial ? initialSeek() : saved.position;
             if (desired === null || (!video.seekable.length && mode !== 'file')) { updateRange(); return; }
             const position = Math.max(earliest, Number.isFinite(latest) ? Math.min(desired, latest) : desired);
-            if (Math.abs(video.currentTime - position) > 0.001) video.currentTime = position;
+            if (Math.abs(video.currentTime - position) > (usingNativeHLS && saved.initial ? 0.25 : 0.001)) video.currentTime = position;
+            if (usingNativeHLS && saved.initial && (video.seeking || Math.abs(video.currentTime - position) > 0.25)) { updateRange(); return; }
             saved.applied = true;
             initialApplied = true;
           }
@@ -184,7 +190,10 @@ export default function RecordingHLSPlayer({ recordingID, csrfToken, onFatalErro
         try {
           const position = initialSeek();
           if (position === null) { updateRange(); return; }
-          if (Math.abs(video.currentTime - position) > 0.001) video.currentTime = position;
+          if (Math.abs(video.currentTime - position) > (usingNativeHLS && mode === 'hls' ? 0.25 : 0.001)) video.currentTime = position;
+          // A native seek may still be pending or silently ignored. Keep the
+          // initial choice pending until a later readiness/seek event confirms it.
+          if (usingNativeHLS && mode === 'hls' && (video.seeking || Math.abs(video.currentTime - position) > 0.25)) { updateRange(); return; }
           initialApplied = true;
         } catch { updateRange(); return; }
       }
@@ -299,7 +308,9 @@ export default function RecordingHLSPlayer({ recordingID, csrfToken, onFatalErro
         });
         instance.attachMedia(video);
       } else if (nativeHLS) {
-        video.src = descriptor.manifest_url;
+        usingNativeHLS = true;
+        // Give native players the starting preference before they load media.
+        video.src = descriptor.manifest_url + (initialPosition === 'beginning' ? '?start=beginning' : '');
         video.load();
         if (!deliberatePause) play();
       } else {

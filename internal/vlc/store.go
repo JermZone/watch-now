@@ -57,6 +57,7 @@ type CreateParams struct {
 	Extension       string
 	DisplayFilename string
 	BaseURL         string
+	StartPosition   string
 }
 
 // Created identifies both opaque stages of a newly-created handoff.
@@ -80,11 +81,13 @@ type Media struct {
 	Extension       string
 	DisplayFilename string
 	BaseURL         string
+	StartPosition   string
 	CreatedAt       time.Time
 	ExpiresAt       time.Time
 	HardExpiresAt   time.Time
 	revoked         chan struct{}
 	activeRelays    int
+	hlsStarted      bool
 }
 
 // Revoked closes when logout, expiration, or fail-closed binding validation
@@ -183,6 +186,7 @@ func (s *Store) Create(params CreateParams) (Created, error) {
 		Extension:       params.Extension,
 		DisplayFilename: params.DisplayFilename,
 		BaseURL:         params.BaseURL,
+		StartPosition:   params.StartPosition,
 		CreatedAt:       now,
 		ExpiresAt:       mediaExpiresAt,
 		HardExpiresAt:   hardExpiresAt,
@@ -294,6 +298,25 @@ func (s *Store) BeginRelay(mediaID string) (Media, func(), bool) {
 	return item, release, true
 }
 
+// RecordingStarted reports whether the external player has selected and received
+// a recording segment. Repeated manifest probes alone never advance this state.
+func (s *Store) RecordingStarted(mediaID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.media[mediaID].hlsStarted
+}
+
+func (s *Store) MarkRecordingStarted(mediaID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.media[mediaID]
+	if !ok || item.Kind != KindRecording || item.Extension != "m3u8" {
+		return
+	}
+	item.hlsStarted = true
+	s.media[mediaID] = item
+}
+
 // DeleteSession revokes every launch ticket and media authorization owned by a
 // viewer session, for example during logout or session destruction.
 func (s *Store) DeleteSession(sessionID string) {
@@ -378,7 +401,8 @@ func (s *Store) uniqueTokenLocked(exclude string) (string, error) {
 }
 
 func validParams(params CreateParams) bool {
-	return params.SessionID != "" &&
+	return (params.StartPosition == "" || ((params.StartPosition == "beginning" || params.StartPosition == "latest") && params.Kind == KindRecording && params.Extension == "m3u8")) &&
+		params.SessionID != "" &&
 		(params.Kind == KindLive || params.Kind == KindMovie || params.Kind == KindEpisode || params.Kind == KindRecording) &&
 		params.ContentID != "" &&
 		params.StreamID != "" &&

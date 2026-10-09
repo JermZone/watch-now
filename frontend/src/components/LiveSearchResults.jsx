@@ -64,7 +64,7 @@ export const ProgramSearchSection = ({ active, dvrEnabled, csrfToken, onExpired,
         {status === 'now' ? <LiveRecordingControl channel={result.channel} currentProgram={result}
           enabled={dvrEnabled} interactionActive={active} presentation="search" csrfToken={csrfToken} onExpired={onExpired}
           loadRecordings={getSearchChannelRecordings} refreshInterval={60000}
-          shareTarget={{ kind: 'live', id: result.channel.id }} onVLC={onVLC ? () => onVLC(result.channel) : undefined} vlcLoading={vlcLoading}
+          shareTarget={{ kind: 'live', id: result.channel.id }} onVLC={onVLC ? (recording, position) => recording ? onVLC(result.channel, recording, position) : onVLC(result.channel) : undefined} vlcLoading={vlcLoading}
           onWatchLive={() => onWatch(result.channel)}
           onWatchRecording={(recording, position) => onWatchRecording?.(result.channel, recording, position)}
           onRecord={Date.parse(result.end) > Date.now() ? onRecord : undefined}

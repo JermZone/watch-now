@@ -82,6 +82,7 @@ describe('DVR foundation', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
     expect(screen.queryByRole('button', { name: 'Watch recording' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Stop recording' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Recording options' })).not.toBeInTheDocument();
     expect(screen.getByText(/Playback becomes available after processing/)).toBeInTheDocument();
   });
 });
@@ -237,7 +238,7 @@ describe('DVR trash action', () => {
     fireEvent.click(screen.getByRole('button', { name: trashName }));
     fireEvent.click(screen.getByRole('button', { name: 'Keep unchanged' }));
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
-    const options = screen.getByRole('button', { name: 'Watch options' });
+    const options = screen.getByRole('button', { name: 'Recording options' });
     fireEvent.click(options);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Stop recording' }));
     fireEvent.click(screen.getByRole('button', { name: 'Keep unchanged' }));
@@ -295,12 +296,13 @@ it('uses the Attention section for recordings that need checking', () => {
 
 describe('DVR watch while recording', () => {
   const activeRecording = { ...program, id: '7', status: 'recording', playable: false, can_watch_active: true };
-  it('offers active watch to a viewer without unfinished download, VLC, share or management', async () => {
+  it('offers active watch and VLC without unfinished download, share or management', async () => {
     const dvr = state({ access: 'view', csrfToken: 'csrf', items: [activeRecording] });
     render(<DVRSection dvr={dvr} mode="browse" search="" />);
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
-    expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Watch options' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Stop recording' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Recording options' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Watch', exact: true }));
     fireEvent.click(screen.getByRole('button', { name: 'Watch from Beginning' }));
     await screen.findByTestId('active-recording-player');
@@ -341,7 +343,7 @@ describe('DVR watch while recording', () => {
     await screen.findByTestId('active-recording-player');
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(dvr.change).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recording options' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Stop recording' }));
     expect(dvr.change).not.toHaveBeenCalled();
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Confirm' }));
@@ -367,8 +369,8 @@ describe('DVR recording Watch chooser', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
     const card = screen.getByRole('heading', { name: activeRecording.title }).closest('article');
     expect(within(card).getByText('Now Recording')).toBeInTheDocument();
-    expect(within(card).getAllByRole('button')).toHaveLength(1);
-    expect(within(card).queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
+    expect(within(card).getAllByRole('button')).toHaveLength(2);
+    expect(within(card).getByRole('button', { name: 'Watch options' })).toBeInTheDocument();
     expect(within(card).queryByRole('button', { name: /VLC|Share|Download|Extend|Stop recording/ })).not.toBeInTheDocument();
     fireEvent.click(within(card).getByRole('button', { name: 'Watch' }));
     const dialog = screen.getByRole('dialog', { name: 'Watch recording' });
@@ -380,6 +382,42 @@ describe('DVR recording Watch chooser', () => {
     expect(player).toHaveAttribute('data-position', position);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(dvr.change).not.toHaveBeenCalled();
+  });
+
+  it.each([['Watch from Beginning', 'beginning'], ['Watch Live', 'latest']])('hands an active recording to VLC after choosing %s', async (label, position) => {
+    localStorage.setItem('dispatcharr-now-vlc-explained', '1');
+    const launch = '/api/vlc/launch/' + 'a'.repeat(43) + '/Football.m3u8';
+    const dvr = state({ access: 'view', items: [activeRecording], change: vi.fn().mockResolvedValue({ launch_url: launch }) });
+    render(<DVRSection dvr={dvr} mode="browse" search="" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Watch in VLC']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    expect(screen.getByRole('dialog', { name: 'Watch recording in VLC' })).toBeInTheDocument();
+    expect(dvr.change).not.toHaveBeenCalled();
+    expect(openVLC).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: label, exact: true }));
+    await waitFor(() => expect(openVLC).toHaveBeenCalledWith(launch, activeRecording.title));
+    expect(dvr.change).toHaveBeenCalledExactlyOnceWith('recordings/7/vlc', 'POST', { position });
+    expect(screen.getByText(/VLC recording preview/)).toBeInTheDocument();
+    expect(screen.queryByTestId('active-recording-player')).not.toBeInTheDocument();
+  });
+
+  it.each(['Cancel', 'Escape'])('cancels VLC choice with %s without creating a handoff', (method) => {
+    localStorage.setItem('dispatcharr-now-vlc-explained', '1');
+    const dvr = state({ access: 'view', items: [activeRecording] });
+    render(<DVRSection dvr={dvr} mode="browse" search="" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
+    const options = screen.getByRole('button', { name: 'Watch options' });
+    fireEvent.click(options);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    expect(screen.getByRole('button', { name: 'Watch from Beginning' })).toHaveFocus();
+    if (method === 'Cancel') fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    else fireEvent.keyDown(document.activeElement, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(options).toHaveFocus();
+    expect(dvr.change).not.toHaveBeenCalled();
+    expect(openVLC).not.toHaveBeenCalled();
   });
 
   it.each(['Cancel', 'Escape'])('dismisses the chooser with %s and restores Watch focus', (method) => {
@@ -406,8 +444,11 @@ describe('DVR recording Watch chooser', () => {
     render(<Sharing.Provider value={sharing}><DVRSection dvr={dvr} mode="browse" search="" /></Sharing.Provider>);
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
     fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Watch in VLC']);
+    fireEvent.keyDown(document.activeElement, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: 'Recording options' }));
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Extend 30 minutes', 'Stop recording']);
-    expect(screen.queryByRole('menuitem', { name: /VLC|Share|Download/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /Share|Download/ })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: label }));
     const dialog = screen.getByRole('dialog', { name: heading });
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
@@ -453,7 +494,7 @@ describe('DVR recording Watch chooser', () => {
     const dvr = state({ items: [activeRecording] });
     const view = render(<DVRSection dvr={dvr} mode="browse" search="" />);
     fireEvent.click(screen.getByRole('button', { name: 'Recording (1)' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Recording options' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Stop recording' }));
     expect(screen.getByRole('dialog', { name: 'Stop this recording?' })).toBeInTheDocument();
     view.rerender(<DVRSection dvr={{ ...dvr, ...update }} mode="browse" search="" />);

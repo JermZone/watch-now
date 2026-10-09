@@ -19,11 +19,13 @@ const jsonResponse = (body, status = 200) => Promise.resolve(new Response(JSON.s
   status, headers: { 'Content-Type': 'application/json' },
 }));
 
-const installAPI = (handoff = () => jsonResponse({ launch_url: launchURL }, 201)) => {
+const installAPI = (handoff = () => jsonResponse({ launch_url: launchURL }, 201), recording = null) => {
   const fetchMock = vi.fn((input, options) => {
     const path = String(input);
     if (path.endsWith('/vlc')) return handoff(input, options);
-    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: false });
+    if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: false, dvr: Boolean(recording) });
+    if (path === '/api/dvr/connection') return jsonResponse({ connected: true, access: 'view' });
+    if (path === '/api/dvr/recordings' || path === '/api/live/channels/41/recordings') return jsonResponse({ items: recording ? [recording] : [], access: 'view' });
     if (path === '/api/live/categories') return jsonResponse([{ id: '2', name: 'News' }]);
     if (path.includes('/epg')) return jsonResponse({});
     if (path.startsWith('/api/live/channels')) return jsonResponse([
@@ -56,6 +58,30 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe('Live TV VLC handoff', () => {
+  it.each([['Watch from Beginning', 'beginning'], ['Watch Live', 'latest']])('routes an active channel VLC selection through DVR after %s and retains it on retry', async (label, position) => {
+    window.localStorage.setItem('dispatcharr-now-vlc-explained', '1');
+    const recording = { id: '7', channel_id: '41', title: 'Recorded News', status: 'recording', can_watch_active: true };
+    const fetchMock = installAPI(undefined, recording);
+    const user = userEvent.setup();
+    renderViewer();
+    await screen.findByText('Now Recording');
+    await user.click(screen.getByRole('button', { name: 'Watch options' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    expect(screen.getByRole('dialog', { name: 'Watch recording in VLC' })).toBeInTheDocument();
+    expect(vlcMocks.openVLC).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: label, exact: true }));
+    await screen.findByText('Ready to watch in VLC');
+    expect(vlcMocks.openVLC).toHaveBeenCalledWith(launchURL, 'Recorded News');
+    await user.click(screen.getByRole('button', { name: 'Watch in VLC again' }));
+    await waitFor(() => expect(vlcMocks.openVLC).toHaveBeenCalledTimes(2));
+    const requests = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/vlc'));
+    expect(requests).toHaveLength(2);
+    for (const [path, options] of requests) {
+      expect(path).toBe('/api/dvr/recordings/7/vlc');
+      expect(JSON.parse(options.body)).toEqual({ position });
+      expect(new Headers(options.headers).get('X-CSRF-Token')).toBe('csrf-live');
+    }
+  });
   it('downloads a titled desktop playlist, retries with a fresh handoff, and returns to browser playback', async () => {
     const fetchMock = installAPI();
     const user = userEvent.setup();

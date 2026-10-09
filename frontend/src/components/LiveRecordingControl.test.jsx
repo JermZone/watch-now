@@ -16,6 +16,32 @@ function setup(data = { items: [], access: 'manage' }, overrides = {}) {
 }
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 describe('Live recording choices', () => {
+  it.each([['Watch from Beginning', 'beginning'], ['Watch Live', 'latest']])('offers %s before the active channel VLC handoff', async (label, position) => {
+    window.localStorage.setItem('dispatcharr-now-vlc-explained', '1');
+    const onVLC = vi.fn();
+    const { callbacks } = setup({ items: [recording], access: 'view' }, { onVLC });
+    await screen.findByText('Now Recording');
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    expect(screen.getByRole('dialog', { name: 'Watch recording in VLC' })).toBeInTheDocument();
+    expect(onVLC).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: label, exact: true }));
+    expect(onVLC).toHaveBeenCalledExactlyOnceWith(recording, position);
+    expect(callbacks.onWatchRecording).not.toHaveBeenCalled();
+    expect(callbacks.onWatchLive).not.toHaveBeenCalled();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+  it('dismisses the VLC chooser when the channel changes without launching', async () => {
+    window.localStorage.setItem('dispatcharr-now-vlc-explained', '1');
+    const onVLC = vi.fn();
+    const { callbacks, rerender } = setup({ items: [recording], access: 'view' }, { onVLC });
+    await screen.findByText('Now Recording');
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    rerender(<LiveRecordingControl {...callbacks} channel={{ id:'42', name:'Sports' }} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(onVLC).not.toHaveBeenCalled();
+  });
   it('does not reopen playback when the viewer leaves while recording starts', async () => {
     let resolveCreate;
     const { callbacks, fetch, rerender } = setup();

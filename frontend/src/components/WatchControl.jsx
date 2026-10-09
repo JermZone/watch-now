@@ -3,6 +3,7 @@ import ShareDialog from './ShareDialog';
 import { useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import Modal from './Modal';
+import { flushSync } from 'react-dom';
 
 import { isAppleMobile, VLC_APP_STORE_URL } from './vlc';
 
@@ -181,7 +182,9 @@ const WatchControl = ({
       return;
     }
     acknowledgeVLC();
-    setShowVLCExplanation(false);
+    // Close the help dialog and restore its opener before a recording chooser
+    // replaces it, so Cancel can return focus to the Watch options button.
+    flushSync(() => setShowVLCExplanation(false));
     onVLC?.();
   };
 

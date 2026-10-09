@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -246,12 +247,40 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" && r.PathValue("action") == "vlc" {
-		if !selected.Playable {
+		var input struct {
+			Position string `json:"position"`
+		}
+		if err := decodeJSON(r, &input); (err != nil && !errors.Is(err, io.EOF)) || (input.Position != "" && input.Position != "beginning" && input.Position != "latest") {
+			writeError(w, 400, "invalid_position", "Choose beginning or live playback")
+			return
+		}
+		useHLS := !selected.Playable || input.Position != ""
+
+		if !selected.Playable && !selected.CanWatchActive {
 			writeError(w, 409, "recording_not_ready", "Playback is available after the recording has finished processing")
 			return
 		}
+		if useHLS {
+			hls, supported := s.dispatcharr.(dispatcharr.DVRHLSAPI)
+			if !supported {
+				writeError(w, 409, "recording_playback_unsupported", "Active recording playback is unavailable on this connection")
+				return
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+			defer cancel()
+			playlist, err := hls.DVRHLSManifest(ctx, s.dvrKey(viewer), selected.ID)
+			if err != nil || (len(playlist.Segments) < 3 && !(playlist.Ended && len(playlist.Segments) > 0)) {
+				writeError(w, 409, "recording_preparing", "Recorded video is not ready for VLC. Wait a few seconds, refresh DVR and try again.")
+				return
+			}
+		}
 		s.createVLCHandoff(w, r, viewer, func(context.Context, session.Session) (mediaSpec, error) {
-			return recordingSpec(selected.Recording), nil
+			spec := recordingSpec(selected.Recording)
+			if useHLS {
+				spec.extension = "m3u8"
+				spec.startPosition = input.Position
+			}
+			return spec, nil
 		})
 		return
 	}
