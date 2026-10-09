@@ -1,18 +1,20 @@
 # DVR
 
-This implementation targets the supported HTTP API exposed by stock Dispatcharr 0.31.0. It checks the fields and permissions it uses, without rejecting later Dispatcharr versions by number. It has automated fixture coverage; playback still depends on device and codec support. See the release record for validation evidence.
+DVR uses the supported HTTP APIs of stock Dispatcharr. Active-recording playback is validated with Dispatcharr 0.32.0; earlier completed-DVR checks used 0.31.0. Watch Now checks capabilities and permissions rather than rejecting newer versions by number. Playback depends on device, container and codecs. See [recording and live pause](watch-while-recording.md) for the viewing workflow.
 
 ## Viewer flow
 
-Open **DVR** below Series in the menu, then **Connect DVR**. Paste the personal Dispatcharr API key for the same account used to sign into Watch Now. The existing XC streaming login remains separate. Watch Now compares the REST identity with the signed-in username; a Standard User cannot borrow an administrator's key. Manually entered keys stay only in the server session and must be reconnected after logout, expiry, or server restart. Administrators can instead provision each account’s key through Compose as described below. Refreshing the page retains the connection while that session is alive. The key is cleared from the input on submission and is never returned in API responses or saved in browser storage.
+Open **DVR** below Series in the menu. Server-managed DVR connects automatically; otherwise use **Connect DVR**. Paste the personal Dispatcharr API key for the same account used to sign into Watch Now. The existing XC streaming login remains separate. Watch Now compares the REST identity with the signed-in username; a Standard User cannot borrow an administrator's key. Manually entered keys stay only in the server session and must be reconnected after logout, expiry, or server restart. Administrators can instead provision each account’s key through Compose as described below. Refreshing the page retains the connection while that session is alive. The key is cleared from the input on submission and is never returned in API responses or saved in browser storage.
 
 Admins can manage DVR. Standard Users follow Dispatcharr's `dvr_access` setting: `view` allows browsing and playback, `manage` also allows recording actions, and `none` disables DVR. A missing Standard User setting defaults to view; an unknown value fails closed. Streamer accounts have no DVR access. Every catalog, mutation, and file request rechecks the account. A rejected key disconnects DVR without logging the viewer out of XC playback.
 
-- **Recorded** uses the shared Watch/Stop control with a dropdown for Download, VLC, and manager-only Delete (with confirmation), for completed/stopped recordings whose remux succeeded. Browser codec/container support still applies; download for an external player when needed.
-- **Recording** shows active jobs, with Stop and Extend 30 minutes for managers. Stop keeps the captured portion. Recording continues in Dispatcharr when Watch Now playback stops or the viewer leaves.
+- **Recorded** offers Watch and a dropdown for Download, VLC and Share link when configured, for finished/stopped recordings whose processing succeeded. Managers delete with the trash icon beside the title, with confirmation. Browser codec/container support still applies; use an external player when needed.
+- **Recording** shows active jobs. Watch opens **Watch from Beginning** / **Watch Live** for available captured footage, with pause, rewind and Go Live. Managers use its dropdown for **Stop recording** and **Extend 30 minutes**, with confirmation. Stop playback is independent: capture continues when playback stops or the viewer leaves. Stop recording keeps the captured portion for processing.
 - **Scheduled** shows upcoming/queued jobs and lets managers cancel them.
 - **Attention** holds interrupted, failed, unknown, or not-yet-ready results. Use Dispatcharr to inspect or repair them. Managers may delete them.
 - **Browse / Search** changes how the existing DVR catalog is explored. Search checks title, subtitle, description, and channel within the selected status. **Find something to record** appears only in a selected status with zero recordings and opens Live TV’s Upcoming search when program search is enabled. An empty search result in a nonempty status does not show the shortcut.
+
+**Watch & Record** on a current airing starts one recording from now and opens near the latest captured footage after initial buffering. It requires management access and current guide data. Beginning cannot recover footage missed before capture started.
 
 Record on a guide entry, search result, or selected-airing details opens a confirmation for that exact channel/start/end. The server verifies those times against the viewer's guide and copies upstream program metadata; the browser cannot create arbitrary manual schedules. Dispatcharr applies its configured recording padding. The accepted schedule is displayed after creation. Recording a program already on captures only what remains. Upcoming search retains its 24-hour horizon; the separate TV Guide supports later airings when available.
 
@@ -97,7 +99,7 @@ The file is read at startup (256 KiB / 256 accounts maximum). Invalid files stop
 
 ## HTTP and resource boundaries
 
-Uses `/api/accounts/users/me/`, `/api/channels/recordings/`, and the recording detail/delete, `stop/`, `extend/`, and `file/` endpoints. REST credentials travel only in the server's `X-API-Key` header. No provider requests, database/Redis access, mounted recording directory, Docker socket, transcoder, or additional service is added.
+Uses `/api/accounts/users/me/`, `/api/channels/recordings/`, and the recording detail/delete, `stop/`, `extend/`, `file/` and recording HLS endpoints. Server-managed mode also checks `/api/accounts/users/`. REST credentials travel only in the server's `X-API-Key` header. No provider requests, database/Redis access, mounted recording directory, Docker socket, transcoder, or additional service is added.
 
 Metadata responses are capped at the smaller of the configured upstream limit and 8 MiB, with a 5,000-record ceiling. Unknown fields are ignored; unsupported response shapes fail closed. Eight concurrent DVR requests, a single non-queued mutation slot, and 30 mutations per session per minute bound work. The frontend renders 20 records per page and refreshes the visible DVR section every 30 seconds. Catalog responses expose only Watch Now-owned fields, never upstream file paths, URLs, task IDs, or account properties.
 
@@ -105,9 +107,11 @@ Mutation endpoints retain origin/CSRF checks. Recording creation checks for an e
 
 Completed media supports validated single HTTP byte ranges, bounded relay buffers, idle/write timeouts, session lifetime bounds, and logout cancellation. It uses existing playback/download limits. Redirects are rejected rather than following an unfinished recording's HLS URL. File downloads and browser playback remain behind the viewer cookie; upstream credentials never appear in media links. The DVR connection can be disconnected independently from the viewer login.
 
-## Follow-up work
+## Playback limits
 
-Active-recording playback, start-over/pause-live TV, saved resume positions, automatic commercial skipping, and recurring/series recording rules are not implemented here. A completed-file range test is not evidence that a growing recording can seek or resume reliably. The football workflow needs a separate trial against 0.31.0 using real recordings, browser/device checks, and restart/reconnect cases before promising it.
+Active playback keeps the player open through recording completion and preserves pause/position when switching to the finished file. Native HLS on iPhone does not guarantee support for every finished MKV; VLC/download remain available afterward for playable finished recordings. The captured timeline cannot seek into missing footage. Ordinary live playback does not create a retained buffer. See [recording and live pause](watch-while-recording.md).
+
+No saved cross-session resume positions, catch-up of uncaptured broadcasts, automatic commercial skipping or recurring/series rules are added. Refresh/restart ends playback. Recordings remain in Dispatcharr, and its retention settings still apply.
 
 Web Video Caster was canceled by the maintainer on 2026-10-05. Its separate
 prototype and test deployment were removed; it is not part of Watch Now.
@@ -116,8 +120,8 @@ prototype and test deployment were removed; it is not part of Watch Now.
 
 Automated tests cover same-account connection, Standard/Admin permissions, permission revocation, session isolation, key compare-and-swap/logout, bounded and redacted Compose key configuration, configured-account matching, channel restrictions, canonical-airing validation, duplicate creation, incomplete-playback rejection, file range relay, redirect rejection, response/key limits, private-field redaction, description matching/bounds, exact-airing selection, confirmation flows, and view-only UI restrictions.
 
-Before release, use a short expendable program on the real 0.31.0 instance: connect as Standard/view, Standard/manage, and Admin; create/cancel a future recording; record/extend/stop a current airing; wait for remux; test browser playback, seeking, and download; verify lineup changes and logout. These checks have not been claimed as completed by the automated suite.
+The maintainer reported real iPhone active-recording playback through completion with pause and rewind working. Automated fixtures and that feature feedback do not establish a complete device/account matrix or exact published-image acceptance. The current evidence and remaining device coverage and publication gates are in [1.4.0 release preparation](release-readiness-1.4.0.md).
 
 Completed DVR recordings use the same short-lived, opaque VLC handoff as other media. Every external request rechecks the owner session, REST identity/permissions, current XC lineup, and completed recording. DVR disconnect or logout revokes the handoff. API keys never appear in playlists or VLC URLs.
 
-The household QA checkpoint and sign-off checklist are in [DVR QA](dvr-qa.md).
+[DVR QA](dvr-qa.md) retains the historical foundation checkpoint. Current recording-player acceptance is recorded in [1.4.0 release preparation](release-readiness-1.4.0.md).

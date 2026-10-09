@@ -43,6 +43,24 @@ afterEach(() => {
 });
 
 describe('WatchControl', () => {
+  it('can keep playback choices out of the menu while retaining external actions', async () => {
+    installMenuGeometry();
+    vi.stubGlobal('navigator', { userAgent: 'Windows', platform: 'Win32', maxTouchPoints: 0 });
+    const onWatch = vi.fn(), onVLC = vi.fn();
+    const user = userEvent.setup();
+    render(<WatchControl showMenuWatch={false} watchHasPopup="dialog" onWatch={onWatch} onVLC={onVLC} />);
+    const watch = screen.getByRole('button', { name: 'Watch', exact: true });
+    expect(watch).toHaveAttribute('aria-haspopup', 'dialog');
+    await user.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.queryByRole('menuitem', { name: 'Watch in Browser' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Watch in VLC']);
+    await user.click(screen.getByRole('menuitem', { name: 'Watch in VLC' }));
+    expect(onVLC).toHaveBeenCalledOnce();
+    expect(onWatch).not.toHaveBeenCalled();
+    await user.click(watch);
+    expect(onWatch).toHaveBeenCalledOnce();
+  });
+
   it('shows only Stop during playback and invokes the stop action', async () => {
     const onStop = vi.fn();
     const onWatch = vi.fn();
@@ -255,5 +273,87 @@ describe('WatchControl', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Open in VLC' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(openVLC).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('WatchControl supported actions', () => {
+  it('renders a single Watch action without an empty dropdown when no extra action is supported', async () => {
+    const onWatch = vi.fn(), onVLC = vi.fn();
+    const user = userEvent.setup();
+    const view = render(<WatchControl onWatch={onWatch} onVLC={onVLC} showMenuWatch={false} showVLC={false} watchHasPopup="dialog" />);
+    const watch = screen.getByRole('button', { name: 'Watch', exact: true });
+    expect(watch).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(watch.closest('.watch-control')).toHaveClass('is-single-action');
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
+    await user.click(watch);
+    expect(onWatch).toHaveBeenCalledOnce();
+    expect(onVLC).not.toHaveBeenCalled();
+    view.rerender(<WatchControl onWatch={onWatch} showMenuWatch={false} showVLC={false} playbackLoading />);
+    expect(screen.getByRole('button', { name: 'Preparing…' })).toBeDisabled();
+    expect(screen.getAllByRole('button')).toHaveLength(1);
+  });
+
+  it('hides unsupported VLC while retaining browser playback by default', () => {
+    installMenuGeometry();
+    const onWatch = vi.fn();
+    render(<WatchControl onWatch={onWatch} onVLC={vi.fn()} showVLC={false} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Watch in Browser']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Watch in Browser' }));
+    expect(onWatch).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('retains the default disabled VLC item when no launch callback is available', () => {
+    installMenuGeometry();
+    render(<WatchControl onWatch={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getByRole('menuitem', { name: 'Watch in Browser' })).toBeEnabled();
+    expect(screen.getByRole('menuitem', { name: /VLC/ })).toBeDisabled();
+  });
+
+  it('keeps a compact management menu without external playback actions', () => {
+    installMenuGeometry();
+    const extend = vi.fn(), stop = vi.fn();
+    render(<WatchControl onWatch={vi.fn()} showMenuWatch={false} showVLC={false} extraActions={[
+      { label: 'Extend 30 minutes', onSelect: extend },
+      { label: 'Stop recording', onSelect: stop },
+    ]} />);
+    const options = screen.getByRole('button', { name: 'Watch options' });
+    fireEvent.click(options);
+    expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Extend 30 minutes', 'Stop recording']);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Extend 30 minutes' }));
+    expect(extend).toHaveBeenCalledOnce();
+    expect(stop).not.toHaveBeenCalled();
+    expect(options).toHaveFocus();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+
+  it('retires an open menu when actions disappear and keeps it closed when they return', () => {
+    installMenuGeometry();
+    const props = { onWatch: vi.fn(), showMenuWatch: false, showVLC: false };
+    const action = { label: 'Stop recording', onSelect: vi.fn() };
+    const view = render(<WatchControl {...props} extraActions={[action]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    view.rerender(<WatchControl {...props} extraActions={[]} />);
+    expect(screen.queryByRole('button', { name: 'Watch options' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    view.rerender(<WatchControl {...props} extraActions={[action]} />);
+    expect(screen.getByRole('button', { name: 'Watch options' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    expect(action.onSelect).not.toHaveBeenCalled();
+  });
+
+  it('closes an open menu when it changes to another selected item', () => {
+    installMenuGeometry();
+    const props = { onWatch: vi.fn(), onDownload: vi.fn() };
+    const view = render(<WatchControl {...props} selectionKey="recording:7" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Watch options' }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    view.rerender(<WatchControl {...props} selectionKey="recording:8" />);
+    expect(screen.getByRole('button', { name: 'Watch options' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });

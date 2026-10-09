@@ -1,14 +1,12 @@
 # Maintainer release procedure
 
-Version **1.3.1 is prepared** for automatic persistent sharing setup. The
-maintainer confirmed the new Docky sharing QA and authorized GitHub publication
-on 2026-10-06. Nebula deployment remains their separate update after image
-verification. See [1.3.1 preparation](release-readiness-1.3.1.md).
-
-Watch Now **1.3.0 is published**. Its
-[release record](https://github.com/JermZone/watch-now/releases/tag/v1.3.0) contains
-verified distribution and stable-promotion evidence. Earlier preparation records
-remain historical; metadata alone does not establish image availability.
+This procedure applies to the stable **1.4.0** release for recording playback,
+live pause through capture, Guide markers and playback controls. The maintainer
+accepted development feature/UI behavior and requested a stable version directly.
+The [1.4.0 preparation record](release-readiness-1.4.0.md) preserves evidence and
+release gates. Use the [published release records](https://github.com/JermZone/watch-now/releases)
+for actual distribution status; source metadata alone does not establish availability.
+Production deployment follows the verified release and remains user-managed.
 
 Published tags, images, and assets are immutable. Do not replace a version to fix
 it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untouched.
@@ -17,10 +15,11 @@ it. The new registry path is `ghcr.io/jermzone/watch-now`; old images stay untou
 
 Update the frontend package/lock metadata, both image-only Compose defaults, source
 Compose build argument, and `.env.example` together. The Makefile/CI read the
-package version instead of hard-coding one. Use `-rc.N` during testing and a new
-candidate number after changing a tagged/published candidate. The imported rc.3
-snapshot was not tagged or published by the source handover. The workflow accepts
-stable and `-rc.N` tags.
+package version instead of hard-coding one. For 1.4.0 the maintainer requested a
+stable version directly: use unique commit-labelled QA images without
+publishing an RC. The workflow also supports `-rc.N` for releases that choose
+public candidates; changes to a published candidate require a new candidate.
+Published versions are immutable.
 
 Run all CI checks, including release-consistency and promotion tests. Read the diff
 and license/source notices. Keep stable release approval separate from green CI.
@@ -29,7 +28,9 @@ maintainer's earlier feature tests and completed source-install check without
 presenting them as newly repeated tests of a registry image.
 
 Finalize the README, installation wording, and [release notes](../RELEASE_NOTES.md)
-before creating the release tag. Keep publication status conditional on the actual
+before creating the release tag. Include all linked customer guides in the
+installation ZIP and check its relative links; do not ship a DVR guide linking
+to a missing recording guide. Keep publication status conditional on the actual
 GitHub release and verified image; do not claim a build or pull passed in advance.
 Record later CI and distribution results in the release PR and release record so
 the tagged source does not need rewriting to add evidence.
@@ -61,7 +62,7 @@ Public and private vulnerability reporting is available in the new repository.
 
 The tag-triggered workflow creates an RC release as a prerelease and a stable
 release as stable, with the exact manifest assets. Approve the version/tag before
-triggering it. Review the generated release notes and include the verified digest
+triggering it. Review the authored release notes and include the verified digest
 and actual check results; retain the known issue and limitations from the prepared
 release notes, and keep unrun checks
 explicit. Any source change after a tag needs a new version/candidate and revalidation.
@@ -80,5 +81,18 @@ The release workflow creates releases using `GITHUB_TOKEN`. Those release events
 do not start another workflow under [GitHub's token event rules](https://docs.github.com/en/actions/concepts/security/github_token).
 Run the existing manual promotion action after the release build and exact-image
 verification; do not assume automatic promotion occurred.
+
+## Interrupted publication
+
+The workflow checks that the GitHub release and versioned registry image are
+absent before publication and checks again immediately before the image push.
+It never replaces release assets. It checks the extracted installation ZIP and
+scans the exact published digest before creating the GitHub release; latest
+promotion repeats that image scan.
+
+If an image was published before a later step failed, its version is consumed.
+Keep that image and digest intact. Correct the failure and prepare a new version;
+do not rerun publication to overwrite the existing version. A failed release
+run does not promote latest.
 
 Linux AMD64 is the initial target. ARM64 must be built/tested before advertising it.

@@ -43,6 +43,7 @@ type Server struct {
 	dvrRequests    chan struct{}
 	dvrWrites      chan struct{}
 	dvrLimiter     *ratelimit.Limiter
+	liveDVRLimiter *ratelimit.Limiter
 	guideFills     chan struct{}
 	lookups        itemLookups
 	cfg            config.Config
@@ -92,6 +93,7 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 		dvrRequests:    make(chan struct{}, 8),
 		dvrWrites:      make(chan struct{}, 1),
 		dvrLimiter:     ratelimit.New(30, time.Minute, cfg.SessionLimit),
+		liveDVRLimiter: ratelimit.New(60, time.Minute, cfg.SessionLimit),
 		guideFills:     make(chan struct{}, 2),
 		cfg:            cfg,
 		dispatcharr:    client,
@@ -113,6 +115,13 @@ func (s *Server) routes() http.Handler {
 	for _, pattern := range []string{"GET /api/share", "POST /api/share", "POST /api/share/resolve"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleShare)))
 	}
+	for _, pattern := range []string{
+		"POST /api/dvr/recordings/{recording_id}/active-playback",
+		"GET /api/dvr/recordings/{recording_id}/active/{generation}/{asset}",
+		"POST /api/dvr/recordings/{recording_id}/active/{generation}/stop",
+	} {
+		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleActiveRecording)))
+	}
 	mux.Handle("GET /api/live/guide", s.requireSession(http.HandlerFunc(s.handleTVGuide)))
 	for _, pattern := range []string{"GET /api/dvr/connection", "POST /api/dvr/connection", "DELETE /api/dvr/connection", "GET /api/dvr/recordings", "POST /api/dvr/recordings", "DELETE /api/dvr/recordings/{recording_id}", "POST /api/dvr/recordings/{recording_id}/{action}", "GET /api/dvr/recordings/{recording_id}/{resource}"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleDVR)))
@@ -128,6 +137,7 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/live/categories", s.requireSession(http.HandlerFunc(s.handleCategories)))
 	mux.Handle("GET /api/live/channels", s.requireSession(http.HandlerFunc(s.handleChannels)))
 	mux.Handle("GET /api/live/channels/{channel_id}/epg", s.requireSession(http.HandlerFunc(s.handleEPG)))
+	mux.Handle("GET /api/live/channels/{channel_id}/recordings", s.requireSession(http.HandlerFunc(s.handleLiveRecordings)))
 	mux.Handle("GET /api/live/channels/{channel_id}/artwork", s.requireSession(http.HandlerFunc(s.handleArtwork)))
 	mux.Handle("GET /api/live/channels/{channel_id}/stream", s.requireSession(http.HandlerFunc(s.handleLiveStream)))
 	mux.Handle("POST /api/live/channels/{channel_id}/vlc", s.requireSession(http.HandlerFunc(s.handleLiveVLC)))
@@ -286,11 +296,9 @@ func (s *Server) handleLiveStream(writer http.ResponseWriter, request *http.Requ
 	)
 	playbackBegan := false
 	defer func() {
-		if s.playbacks.finish(viewerSession.ID, generation) && playbackBegan {
-			s.sessions.EndPlayback(viewerSession.ID)
-		}
+		s.finishPlayback(viewerSession.ID, generation, playbackBegan)
 	}()
-	currentSession, ok := s.sessions.BeginPlayback(viewerSession.ID)
+	currentSession, ok := s.beginPlayback(viewerSession.ID, generation)
 	if !ok {
 		writeError(writer, http.StatusUnauthorized, "session_expired", "Your viewer session expired; sign in again")
 		return

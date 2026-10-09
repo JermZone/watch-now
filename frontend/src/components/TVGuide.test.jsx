@@ -1,9 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import TVGuide, { guideLanes, currentTitleStart } from './TVGuide';
-import { APIError, getTVGuide } from '../api';
-vi.mock('../api', async (original) => ({ ...await original(), getTVGuide: vi.fn() }));
+import { APIError, changeDVR, getChannelRecordings, getTVGuide } from '../api';
+vi.mock('../api', async (original) => ({ ...await original(), getTVGuide: vi.fn(), getChannelRecordings: vi.fn(), changeDVR: vi.fn() }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); });
 const channel = { id: '41', name: 'News', channel_number: '7' };
 const airing = (id = 'a', future = false) => ({ id, channel, title: `Program ${id}`, start: new Date(Date.now() + (future ? 86400000 : -3600000)).toISOString(), end: new Date(Date.now() + (future ? 90000000 : 3600000)).toISOString() });
@@ -98,7 +98,9 @@ it('debounces time scrubbing, keeps a three-hour window, and returns to Now', as
  await userEvent.click(days[1]);
  await waitFor(() => expect(getTVGuide).toHaveBeenCalledTimes(3));
  const slider = screen.getByRole('slider', { name: 'Guide start time' });
- const target = Number(slider.min) + 12 * 3600000;
+ const noon = Number(slider.min) + 12 * 3600000;
+ // Scrub to a different window even when the test runs during the noon hour.
+ const target = Number(slider.value) === noon ? noon + 3600000 : noon;
  fireEvent.change(slider, { target: { value: String(target - 1800000) } });
  fireEvent.change(slider, { target: { value: String(target) } });
  expect(getTVGuide).toHaveBeenCalledTimes(3);
@@ -219,7 +221,7 @@ it('opens channel options from the Grid logo without autoplay and restores focus
  getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [] }] });
  const p = props(); render(<TVGuide {...p} isMobile />);
  const logo = await screen.findByRole('button', { name: 'Options for News' });
- expect(screen.queryByRole('button', { name: 'Watch live', exact: true })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Watch Live', exact: true })).not.toBeInTheDocument();
  await userEvent.click(logo);
  expect(screen.getByRole('dialog')).toHaveAccessibleName('News');
  expect(p.onWatch).not.toHaveBeenCalled();
@@ -227,7 +229,7 @@ it('opens channel options from the Grid logo without autoplay and restores focus
  await userEvent.click(screen.getByRole('button', { name: 'Close' }));
  expect(logo).toHaveFocus();
  await userEvent.click(logo);
- await userEvent.click(screen.getByRole('button', { name: 'Watch live', exact: true }));
+ await userEvent.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
  expect(p.onWatch).toHaveBeenCalledWith(channel);
  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });
@@ -395,3 +397,386 @@ it('borrows only the title space needed from a current airing, never from an end
  expect(currentTitleStart([{ programs: [ended, program(now - 3600000, now + 2 * 3600000)] }], day, now)).toBe(now);
  expect(currentTitleStart([{ programs: [program(now - 5 * 60000, now + 5 * 60000)] }], day, now)).toBe(now - 5 * 60000);
 });
+
+it('offers matching Guide watch actions and records the exact current airing before watching', async () => {
+ const program = airing('current');
+ const recording = { ...program, id: '7', channel_id: channel.id, status: 'recording', can_watch_active: true };
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [program] }] });
+ getChannelRecordings.mockResolvedValue({ items: [], access: 'manage' });
+ changeDVR.mockResolvedValue({ recording, already_scheduled: false });
+ const p = { ...props(), dvrEnabled: true, csrfToken: 'guide-csrf', onWatchRecording: vi.fn() };
+ render(<TVGuide {...p} />);
+ await userEvent.click(await screen.findByRole('button', { name: /News, Program current,/ }));
+ const watchAndRecord = await screen.findByRole('button', { name: 'Watch & Record', exact: true });
+ expect(screen.getByRole('button', { name: 'Watch Live', exact: true })).toHaveClass('primary-button');
+ expect(watchAndRecord).toHaveClass('quiet-button');
+ expect(screen.getByRole('button', { name: 'Record', exact: true })).toHaveClass('quiet-button');
+ expect(screen.getByRole('button', { name: 'Close', exact: true })).toHaveClass('quiet-button');
+ await userEvent.click(watchAndRecord);
+ await waitFor(() => expect(p.onWatchRecording).toHaveBeenCalledWith(channel, recording, 'latest'));
+ expect(changeDVR).toHaveBeenCalledTimes(1);
+ expect(changeDVR).toHaveBeenCalledWith('recordings', 'POST', 'guide-csrf', {
+  channel_id: channel.id, start: program.start, end: program.end,
+ }, expect.objectContaining({ signal: expect.any(AbortSignal) }));
+ expect(p.onWatch).not.toHaveBeenCalled();
+ expect(p.onRecord).not.toHaveBeenCalled();
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it.each([
+ ['Watch from Beginning', 'beginning'],
+ ['Watch Live', 'latest'],
+])('keeps Guide recording choices in one modal and watches %s without creating a recording', async (label, position) => {
+ const program = airing('current');
+ const recording = { ...program, id: '7', channel_id: channel.id, status: 'recording', can_watch_active: true };
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [program] }] });
+ getChannelRecordings.mockResolvedValue({ items: [recording], access: 'view' });
+ const p = { ...props(), dvrEnabled: true, csrfToken: 'guide-csrf', onWatchRecording: vi.fn() };
+ render(<TVGuide {...p} />);
+ await userEvent.click(await screen.findByRole('button', { name: /News, Program current,/ }));
+ const watch = await screen.findByRole('button', { name: 'Watch', exact: true });
+ expect(screen.getByText('Now Recording')).toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Watch & Record', exact: true })).not.toBeInTheDocument();
+ expect(screen.queryByRole('button', { name: 'Record', exact: true })).not.toBeInTheDocument();
+ await userEvent.click(watch);
+ expect(screen.getAllByRole('dialog')).toHaveLength(1);
+ expect(screen.getByRole('button', { name: 'Watch from Beginning', exact: true })).toHaveFocus();
+ expect(screen.queryByRole('button', { name: 'Watch', exact: true })).not.toBeInTheDocument();
+ await userEvent.click(screen.getByRole('button', { name: label, exact: true }));
+ expect(p.onWatchRecording).toHaveBeenCalledWith(channel, recording, position);
+ expect(p.onWatch).not.toHaveBeenCalled();
+ expect(changeDVR).not.toHaveBeenCalled();
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('keeps future Guide airings record-only without recording discovery', async () => {
+ const program = airing('future', true);
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [program] }] });
+ const p = { ...props(), dvrEnabled: true, csrfToken: 'guide-csrf', onWatchRecording: vi.fn() };
+ render(<TVGuide {...p} />);
+ await userEvent.click(screen.getByRole('button', { name: 'List', exact: true }));
+ await userEvent.click(await screen.findByRole('button', { name: /News, Program future,/ }));
+ expect(getChannelRecordings).not.toHaveBeenCalled();
+ expect(within(screen.getByRole('dialog')).queryByRole('button', { name: /Watch/ })).not.toBeInTheDocument();
+ const record = screen.getByRole('button', { name: 'Record', exact: true });
+ expect(record).toHaveClass('quiet-button');
+ expect(screen.getByRole('button', { name: 'Close', exact: true })).toHaveClass('quiet-button');
+ await userEvent.click(record);
+ expect(p.onRecord).toHaveBeenCalledWith(program);
+ expect(changeDVR).not.toHaveBeenCalled();
+ expect(p.onWatchRecording).not.toHaveBeenCalled();
+});
+
+it('does not start late Guide playback after closing while Watch & Record is pending', async () => {
+ const program = airing('current');
+ const recording = { ...program, id: '7', channel_id: channel.id, status: 'recording', can_watch_active: true };
+ let finishCreate;
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [program] }] });
+ getChannelRecordings.mockResolvedValue({ items: [], access: 'manage' });
+ changeDVR.mockImplementation(() => new Promise(resolve => { finishCreate = resolve; }));
+ const p = { ...props(), dvrEnabled: true, csrfToken: 'guide-csrf', onWatchRecording: vi.fn() };
+ render(<TVGuide {...p} />);
+ const programButton = await screen.findByRole('button', { name: /News, Program current,/ });
+ await userEvent.click(programButton);
+ await userEvent.click(await screen.findByRole('button', { name: 'Watch & Record', exact: true }));
+ await waitFor(() => expect(finishCreate).toBeTypeOf('function'));
+ const signal = changeDVR.mock.calls[0][4].signal;
+ await userEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+ expect(signal.aborted).toBe(true);
+ expect(programButton).toHaveFocus();
+ await act(async () => finishCreate({ recording }));
+ expect(p.onWatchRecording).not.toHaveBeenCalled();
+ expect(p.onWatch).not.toHaveBeenCalled();
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+it('returns from Guide recording choices to its actions without nesting or starting playback', async () => {
+ const program = airing('current');
+ const recording = { ...program, id: '7', channel_id: channel.id, status: 'recording', can_watch_active: true };
+ getTVGuide.mockResolvedValue({ ...page(), items: [{ channel, programs: [program] }] });
+ getChannelRecordings.mockResolvedValue({ items: [recording], access: 'view' });
+ const p = { ...props(), dvrEnabled: true, csrfToken: 'guide-csrf', onWatchRecording: vi.fn() };
+ render(<TVGuide {...p} />);
+ await userEvent.click(await screen.findByRole('button', { name: /News, Program current,/ }));
+ await userEvent.click(await screen.findByRole('button', { name: 'Watch', exact: true }));
+ expect(screen.getAllByRole('dialog')).toHaveLength(1);
+ await userEvent.click(screen.getByRole('button', { name: 'Cancel', exact: true }));
+ expect(screen.getAllByRole('dialog')).toHaveLength(1);
+ expect(screen.getByRole('button', { name: 'Watch', exact: true })).toHaveFocus();
+ expect(screen.queryByRole('button', { name: 'Watch from Beginning', exact: true })).not.toBeInTheDocument();
+ expect(p.onWatchRecording).not.toHaveBeenCalled();
+ expect(changeDVR).not.toHaveBeenCalled();
+ await userEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+ expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+});
+
+
+// Guide markers describe DVR state without changing the airing's action.
+const markerNow = new Date('2026-10-09T12:00:00Z').getTime();
+const markerProgram = (id, fromMinutes, durationMinutes, overrides = {}) => ({
+  id, channel, title: `Marker program ${id}`,
+  start: new Date(markerNow + fromMinutes * 60000).toISOString(),
+  end: new Date(markerNow + (fromMinutes + durationMinutes) * 60000).toISOString(),
+  ...overrides,
+});
+const markerRecording = (program, status = 'recording', overrides = {}) => ({
+  id: `7${program.id.length}`, channel_id: program.channel.id, title: program.title,
+  start: program.start, end: program.end, status, ...overrides,
+});
+const markerPage = (programs, rows) => ({
+  available_dates: ['2026-10-09', '2026-10-10'], snapshot: 'markers', page: 1, has_more: false,
+  items: rows || [{ channel, programs }],
+});
+const settleMarkers = () => act(async () => { await Promise.resolve(); await Promise.resolve(); });
+const withMarkerClock = async (task) => {
+  vi.useFakeTimers();
+  vi.setSystemTime(markerNow);
+  try { await task(); }
+  finally { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); }
+};
+const markerProps = (recordings = []) => ({
+  ...props(), dvrEnabled: true, recordingsAvailable: true, recordings,
+});
+
+it.each(['Grid', 'List'])('shows only recording and scheduled guide markers in %s, with accessible status on each airing', (layout) => withMarkerClock(async () => {
+  if (layout === 'List') localStorage.setItem('watch-now-guide-layout', 'agenda');
+  const current = markerProgram('active', -30, 60);
+  const scheduled = markerProgram('scheduled', 30, 30);
+  const ordinary = markerProgram('ordinary', 60, 30);
+  const failed = markerProgram('failed', 90, 30);
+  const completed = markerProgram('completed', 120, 30);
+  getTVGuide.mockResolvedValue(markerPage([current, scheduled, ordinary, failed, completed]));
+  render(<TVGuide {...markerProps([
+    markerRecording(current), markerRecording(scheduled, 'scheduled'),
+    markerRecording(failed, 'failed'), markerRecording(completed, 'recorded'),
+  ])} />);
+  await settleMarkers();
+  for (const [program, status, label] of [[current, 'recording', 'Recording now'], [scheduled, 'scheduled', 'Scheduled recording']]) {
+    const button = screen.getByRole('button', { name: new RegExp(`${program.title},.*${label}$`) });
+    expect(button).toHaveAttribute('title', expect.stringContaining(program.title));
+    expect(button).toHaveAttribute('title', expect.stringContaining(label));
+    const dot = button.querySelector('.tv-guide-recording-dot');
+    expect(dot).toHaveAttribute('data-recording-status', status);
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(button.textContent).not.toContain(label);
+  }
+  for (const program of [ordinary, failed, completed]) {
+    expect(screen.getByRole('button', { name: new RegExp(program.title) }).querySelector('.tv-guide-recording-dot')).toBeNull();
+  }
+  expect(document.querySelectorAll('.tv-guide-recording-dot')).toHaveLength(2);
+  expect(getChannelRecordings).not.toHaveBeenCalled();
+}));
+
+it.each([
+  ['DVR is disabled', { dvrEnabled: false }],
+  ['the catalog is unavailable', { recordingsAvailable: false }],
+  ['the catalog availability was not supplied', { recordingsAvailable: undefined }],
+])('omits guide markers when %s', (_label, override) => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60);
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  render(<TVGuide {...markerProps([markerRecording(program)])} {...override} />);
+  await settleMarkers();
+  const button = screen.getByRole('button', { name: new RegExp(program.title) });
+  expect(button.querySelector('.tv-guide-recording-dot')).toBeNull();
+  expect(button).not.toHaveAttribute('title', expect.stringContaining('Recording now'));
+  expect(button).not.toHaveAccessibleName(expect.stringContaining('Recording now'));
+}));
+
+it.each([
+  ['a legacy full capture with the same title', {}, true],
+  ['a legacy generic capture covering the airing', { title: 'Recording' }, true],
+  ['a legacy untitled capture covering the airing', { title: '' }, true],
+  ['a partial capture ending with the airing', { start: new Date(markerNow).toISOString() }, true],
+  ['a partial capture that ends before the airing', { start: new Date(markerNow).toISOString(), end: new Date(markerNow + 10 * 60000).toISOString() }, false],
+  ['another title during the same time', { title: 'Different programme' }, false],
+  ['a different episode subtitle', { subtitle: 'Another episode' }, false],
+  ['a matching explicit airing ID with a changed title', { airing_id: 'a'.repeat(32), title: 'Updated title', start: new Date(markerNow).toISOString() }, true],
+  ['a different explicit airing ID despite matching times', { airing_id: 'b'.repeat(32) }, false],
+  ['the same ID outside the airing interval', { airing_id: 'a'.repeat(32), start: new Date(markerNow + 40 * 60000).toISOString(), end: new Date(markerNow + 50 * 60000).toISOString() }, false],
+  ['a zero-length recording interval', { end: new Date(markerNow - 30 * 60000).toISOString() }, false],
+  ['invalid recording times', { start: 'invalid' }, false],
+])('matches guide markers correctly for %s', (_label, override, matched) => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60, { id: 'a'.repeat(32), subtitle: 'Episode one' });
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  render(<TVGuide {...markerProps([markerRecording(program, 'recording', override)])} />);
+  await settleMarkers();
+  const button = screen.getByRole('button', { name: new RegExp(program.title) });
+  expect(Boolean(button.querySelector('.tv-guide-recording-dot'))).toBe(matched);
+  if (matched) expect(button).toHaveAccessibleName(expect.stringMatching(/Recording now$/));
+}));
+
+it('does not mark repeated titles at another time or on another channel', () => withMarkerClock(async () => {
+  const current = markerProgram('active', -30, 60, { title: 'Daily bulletin' });
+  const later = markerProgram('later', 30, 60, { title: current.title });
+  const otherChannel = { ...channel, id: '42', name: 'Other news' };
+  const elsewhere = { ...current, id: 'other', channel: otherChannel };
+  getTVGuide.mockResolvedValue(markerPage([], [
+    { channel, programs: [current, later] },
+    { channel: otherChannel, programs: [elsewhere] },
+  ]));
+  render(<TVGuide {...markerProps([markerRecording(current)])} channels={[channel, otherChannel]} />);
+  await settleMarkers();
+  const sameChannel = within(screen.getByRole('group', { name: '7 News' }).closest('[data-guide-row]')).getAllByRole('button', { name: /Daily bulletin/ });
+  expect(sameChannel[0].querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'recording');
+  expect(sameChannel[1].querySelector('.tv-guide-recording-dot')).toBeNull();
+  const otherButton = screen.getByRole('button', { name: /Other news, Daily bulletin/ });
+  expect(otherButton.querySelector('.tv-guide-recording-dot')).toBeNull();
+}));
+
+it('shows a recording marker on a conflict block and the correct marker on each selectable listing', () => withMarkerClock(async () => {
+  const first = markerProgram('first', -30, 60);
+  const second = markerProgram('second', -15, 60);
+  getTVGuide.mockResolvedValue(markerPage([first, second]));
+  getChannelRecordings.mockResolvedValue({ items: [], access: 'view' });
+  const p = markerProps([markerRecording(first, 'scheduled'), markerRecording(second)]);
+  render(<TVGuide {...p} />);
+  await settleMarkers();
+  const group = screen.getByRole('button', { name: /News, 2 overlapping listings.*Recording now$/ });
+  expect(group.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'recording');
+  expect(group).toHaveAttribute('title', expect.stringContaining('Recording now'));
+  fireEvent.click(group);
+  const choices = within(screen.getByRole('dialog', { name: 'Overlapping listings' }));
+  const scheduled = choices.getByRole('button', { name: new RegExp(`${first.title},.*Scheduled recording$`) });
+  const recording = choices.getByRole('button', { name: new RegExp(`${second.title},.*Recording now$`) });
+  expect(scheduled.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'scheduled');
+  expect(recording.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'recording');
+  fireEvent.click(recording);
+  await settleMarkers();
+  expect(screen.getByRole('dialog')).toHaveAccessibleName(second.title);
+  expect(p.onWatch).not.toHaveBeenCalled();
+  expect(p.onRecord).not.toHaveBeenCalled();
+  expect(changeDVR).not.toHaveBeenCalled();
+}));
+
+it('updates guide markers immediately from the shared catalog after create, start, and cancellation', () => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60);
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  const p = markerProps();
+  const view = render(<TVGuide {...p} />);
+  await settleMarkers();
+  const requestCount = getTVGuide.mock.calls.length;
+  expect(document.querySelector('.tv-guide-recording-dot')).toBeNull();
+  view.rerender(<TVGuide {...p} recordings={[markerRecording(program, 'scheduled')]} />);
+  expect(document.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'scheduled');
+  view.rerender(<TVGuide {...p} recordings={[markerRecording(program)]} />);
+  expect(document.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'recording');
+  view.rerender(<TVGuide {...p} recordings={[]} />);
+  expect(document.querySelector('.tv-guide-recording-dot')).toBeNull();
+  expect(getTVGuide).toHaveBeenCalledTimes(requestCount);
+  expect(getChannelRecordings).not.toHaveBeenCalled();
+}));
+
+it('refreshes the shared recording catalog on guide entry, every thirty seconds, and visible resume', () => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60);
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  const refresh = vi.fn().mockResolvedValue();
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  const p = { ...markerProps(), onRefreshRecordings: refresh };
+  const view = render(<TVGuide {...p} active={false} />);
+  await settleMarkers();
+  expect(refresh).not.toHaveBeenCalled();
+  view.rerender(<TVGuide {...p} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+  expect(refresh).toHaveBeenCalledTimes(2);
+  visibility.mockReturnValue('hidden');
+  fireEvent(document, new Event('visibilitychange'));
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  expect(refresh).toHaveBeenCalledTimes(2);
+  visibility.mockReturnValue('visible');
+  fireEvent(document, new Event('visibilitychange'));
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(3);
+  view.rerender(<TVGuide {...p} suspended />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  fireEvent(document, new Event('visibilitychange'));
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(3);
+  view.rerender(<TVGuide {...p} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(4);
+  view.rerender(<TVGuide {...p} active={false} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  expect(refresh).toHaveBeenCalledTimes(4);
+  view.rerender(<TVGuide {...p} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(5);
+}));
+
+it('skips overlapping recording refreshes and can refresh again after a rejected request', () => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60);
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  let complete;
+  const refresh = vi.fn().mockImplementationOnce(() => new Promise(resolve => { complete = resolve; }))
+    .mockRejectedValueOnce(new Error('Catalog temporarily unavailable')).mockResolvedValue();
+  render(<TVGuide {...markerProps()} onRefreshRecordings={refresh} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  fireEvent(document, new Event('visibilitychange'));
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  await act(async () => { complete(); });
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+  expect(refresh).toHaveBeenCalledTimes(2);
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+  expect(refresh).toHaveBeenCalledTimes(3);
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+}));
+
+it('waits for parent DVR operations and skips refreshes when the guide is hidden or disabled', () => withMarkerClock(async () => {
+  getTVGuide.mockResolvedValue(markerPage([]));
+  const refresh = vi.fn().mockResolvedValue();
+  const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+  const p = { ...markerProps(), onRefreshRecordings: refresh };
+  const view = render(<TVGuide {...p} recordingsBusy />);
+  await settleMarkers();
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+  expect(refresh).not.toHaveBeenCalled();
+  visibility.mockReturnValue('visible');
+  fireEvent(document, new Event('visibilitychange'));
+  await settleMarkers();
+  expect(refresh).not.toHaveBeenCalled();
+  view.rerender(<TVGuide {...p} recordingsBusy={false} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(30000); });
+  expect(refresh).toHaveBeenCalledTimes(1);
+  view.rerender(<TVGuide {...p} dvrEnabled={false} />);
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  fireEvent(document, new Event('visibilitychange'));
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+}));
+
+it('refreshes an unavailable catalog and displays markers only after the parent confirms current data', () => withMarkerClock(async () => {
+  const program = markerProgram('active', -30, 60);
+  const recordings = [markerRecording(program)];
+  getTVGuide.mockResolvedValue(markerPage([program]));
+  const refresh = vi.fn().mockResolvedValue({ items: recordings });
+  const p = { ...markerProps(recordings), onRefreshRecordings: refresh };
+  const view = render(<TVGuide {...p} recordingsAvailable={false} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(document.querySelector('.tv-guide-recording-dot')).toBeNull();
+  view.rerender(<TVGuide {...p} recordingsAvailable />);
+  expect(document.querySelector('.tv-guide-recording-dot')).toHaveAttribute('data-recording-status', 'recording');
+  view.rerender(<TVGuide {...p} recordingsAvailable={false} />);
+  expect(document.querySelector('.tv-guide-recording-dot')).toBeNull();
+  expect(getTVGuide).toHaveBeenCalledTimes(1);
+}));
+
+it('does not retain refresh listeners or start additional requests after unmount with a pending refresh', () => withMarkerClock(async () => {
+  getTVGuide.mockResolvedValue(markerPage([]));
+  let complete;
+  const refresh = vi.fn().mockImplementation(() => new Promise(resolve => { complete = resolve; }));
+  const view = render(<TVGuide {...markerProps()} onRefreshRecordings={refresh} />);
+  await settleMarkers();
+  expect(refresh).toHaveBeenCalledTimes(1);
+  view.unmount();
+  await act(async () => { complete({ items: [markerRecording(markerProgram('active', -30, 60))] }); });
+  fireEvent(document, new Event('visibilitychange'));
+  await act(async () => { await vi.advanceTimersByTimeAsync(60000); });
+  expect(refresh).toHaveBeenCalledTimes(1);
+  expect(document.querySelector('.tv-guide-recording-dot')).toBeNull();
+}));

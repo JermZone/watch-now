@@ -9,6 +9,10 @@ vi.mock('./NativeVideoPlayer', () => ({
   default: ({ source }) => <div data-source={source} data-testid="native-player" />,
 }));
 
+vi.mock('./vlc', async (original) => ({ ...(await original()), openVLC: vi.fn() }));
+
+import { openVLC } from './vlc';
+import { airingTime } from './DVR';
 import ViewerShell, { PHONE_LAYOUT_QUERY } from './ViewerShell';
 import { Sharing } from '../navigation';
 
@@ -98,6 +102,7 @@ const chooseSection = async (user, label) => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  openVLC.mockReset();
   window.localStorage.removeItem('dispatcharr-now-appearance');
   delete document.documentElement.dataset.theme;
 });
@@ -489,7 +494,7 @@ describe('ViewerShell search', () => {
     await screen.findByRole('navigation', { name: 'Live TV search scope' });
     await user.click(screen.getByRole('button', { name: 'On now' }));
     await user.type(screen.getByRole('searchbox'), 'news');
-    await user.click(await screen.findByRole('button', { name: 'Watch Now' }));
+    await user.click(await screen.findByRole('button', { name: 'Watch Live', exact: true }));
     expect(screen.getByRole('searchbox')).toHaveValue('news');
     expect(screen.queryByRole('button', { name: /Morning report/ })).not.toBeInTheDocument();
     expect(screen.getByTestId('live-player')).toBeVisible();
@@ -692,13 +697,25 @@ it('places Guide next to Browse/Search and preserves playback and browse selecti
   await screen.findByRole('button', { name: 'Guide', exact: true });
   await userEvent.click(await screen.findByRole('button', { name: 'Watch Live', exact: true }));
   const player = await screen.findByTestId('live-player');
+  const details = screen.getByRole('button', { name: 'Details', exact: true });
+  expect(details.previousElementSibling).toBe(screen.getByRole('heading', { name: 'World News', exact: true }));
+  expect(details.closest('.live-focus-navigation')).toBeNull();
+  expect(document.querySelector('.live-focus-navigation').querySelectorAll('button')).toHaveLength(1);
+  await userEvent.click(details);
+  expect(screen.getByRole('dialog', { name: 'Playback details' })).toHaveTextContent('News Now');
+  expect(screen.getByTestId('live-player')).toBe(player);
+  await userEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+  expect(details).toHaveFocus();
+  expect(screen.getByTestId('live-player')).toBe(player);
   await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
   expect(await screen.findByRole('region', { name: 'TV Guide' })).toBeVisible();
   expect(screen.getByTestId('live-player')).toBe(player);
   expect(screen.getByRole('button', { name: 'Guide', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await userEvent.click(screen.getByRole('button', { name: 'Browse', exact: true }));
   expect(screen.getByTestId('live-player')).toBe(player);
-  await userEvent.click(screen.getByRole('button', { name: 'View in Guide' }));
+  await userEvent.click(screen.getByRole('button', { name: /Back to browsing/ }));
+  expect(screen.getByTestId('live-player')).toBe(player);
+  await userEvent.click(within(screen.getByRole('region', { name: 'Selected channel: World News' })).getByRole('button', { name: 'View in Guide' }));
   await waitFor(() => expect(fetchMock.mock.calls.some(([path]) => String(path).includes('/api/live/guide?') && String(path).includes('channel_id=41'))).toBe(true));
 });
 
@@ -714,7 +731,7 @@ it('preserves Search playback entering Guide with an empty Browse group', async 
   await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'empty');
   await userEvent.click(screen.getByRole('button', { name: 'Search', exact: true }));
   await userEvent.type(screen.getByRole('searchbox'), 'World');
-  await userEvent.click(await screen.findByRole('button', { name: 'Watch Now', exact: true }));
+  await userEvent.click(await screen.findByRole('button', { name: 'Watch Live', exact: true }));
   const player = await screen.findByTestId('live-player');
   await userEvent.click(screen.getByRole('button', { name: 'Guide', exact: true }));
   expect(screen.queryByTestId('live-player')).toBe(player);
@@ -737,10 +754,21 @@ it.each([false, true])('opens dedicated Guide playback and restores the schedule
     const guideCalls = () => fetchMock.mock.calls.filter(([path]) => String(path).startsWith('/api/live/guide?')).length;
     const before = guideCalls();
     await userEvent.click(logo);
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch Live', exact: true }));
     expect(guide).not.toBeVisible();
     expect(screen.getByTestId('live-player')).toBeVisible();
     expect(screen.getByRole('region', { name: 'Live playback' })).toHaveFocus();
+    const player = screen.getByTestId('live-player');
+    const details = screen.getByRole('button', { name: 'Details', exact: true });
+    expect(details.previousElementSibling).toBe(screen.getByRole('heading', { name: 'World News', exact: true }));
+    expect(details.closest('.channel-identity')).toBe(screen.getByRole('region', { name: 'Selected channel: World News' }));
+    await userEvent.click(details);
+    expect(screen.getByRole('dialog', { name: 'Playback details' })).toBeInTheDocument();
+    expect(screen.getByTestId('live-player')).toBe(player);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(details).toHaveFocus();
+    expect(screen.getByTestId('live-player')).toBe(player);
     expect(screen.getByRole('button', { name: /Back to Guide/ })).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: /Back to Guide/ }));
     expect(guide).toBeVisible();
@@ -749,7 +777,7 @@ it.each([false, true])('opens dedicated Guide playback and restores the schedule
     expect(guideCalls()).toBe(before);
     expect(scrollWindow).toHaveBeenCalled();
     await userEvent.click(logo);
-    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch live', exact: true }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Watch Live', exact: true }));
     await userEvent.click(screen.getByRole('button', { name: 'Stop', exact: true }));
     expect(guide).not.toBeVisible();
     expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
@@ -765,4 +793,294 @@ it.each([false, true])('opens dedicated Guide playback and restores the schedule
     else delete HTMLElement.prototype.scrollIntoView;
     scrollWindow.mockRestore();
   }
+});
+
+describe('ViewerShell selected airing details', () => {
+  it.each([false, true])('merges the selected current airing into Now (mobile: %s)', async (mobile) => {
+    installLayoutMedia(mobile);
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    const start = new Date(Date.now() - 60000).toISOString();
+    const end = new Date(Date.now() + 60000).toISOString();
+    const program = { title: 'Morning report', start, end };
+    fetchMock.mockImplementation((input) => {
+      const path = String(input);
+      if (path.startsWith('/api/live/programs/search?')) return jsonResponse({ items: [{ ...program, id: 'search1', subtitle: 'Special report', description: 'The selected programme description.', channel: { id: '41', name: 'World News' } }], total: 1, page: 1, page_size: 20 });
+      if (path.startsWith('/api/live/channels/41/epg')) return jsonResponse({ current: program });
+      return original(input);
+    });
+    const user = userEvent.setup(); renderViewer();
+    await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
+    await screen.findByRole('navigation', { name: 'Live TV search scope' });
+    await user.click(screen.getByRole('button', { name: 'On now' }));
+    await user.type(screen.getByRole('searchbox'), 'news');
+    await user.click(await screen.findByRole('button', { name: /Morning report/ }));
+    const detail = screen.getByRole('region', { name: 'Program guide for World News' });
+    await waitFor(() => expect(within(detail).getAllByRole('heading', { name: 'Morning report' })).toHaveLength(1));
+    expect(within(detail).queryByText('Selected airing')).not.toBeInTheDocument();
+    expect(within(detail).getByText('Now')).toBeInTheDocument();
+    expect(within(detail).getByText('Special report')).toBeInTheDocument();
+    expect(within(detail).getByText('The selected programme description.')).toBeInTheDocument();
+  });
+  it('keeps a future selection distinct from what is on now', async () => {
+    installLayoutMedia(false);
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((input) => String(input).startsWith('/api/live/programs/search?')
+      ? jsonResponse({ items: [{ id: 'future1', title: 'Morning report', start: new Date(Date.now() + 3600000), end: new Date(Date.now() + 7200000), channel: { id: '41', name: 'World News' } }], total: 1, page: 1, page_size: 20 }) : original(input));
+    const user = userEvent.setup(); renderViewer();
+    await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
+    await screen.findByRole('navigation', { name: 'Live TV search scope' });
+    await user.click(screen.getByRole('button', { name: 'Upcoming' }));
+    await user.type(screen.getByRole('searchbox'), 'news');
+    await user.click(await screen.findByRole('button', { name: /Morning report/ }));
+    const detail = screen.getByRole('region', { name: 'Program guide for World News' });
+    expect(await within(detail).findByText('Upcoming selection')).toBeInTheDocument();
+    expect(within(detail).getByRole('heading', { name: 'Morning report' })).toBeInTheDocument();
+    expect(within(detail).getByRole('heading', { name: 'News Now' })).toBeInTheDocument();
+  });
+});
+
+
+describe('Search VLC dropdown integration', () => {
+  const launchURL = '/api/vlc/launch/' + 'a'.repeat(43);
+  const enterCurrentSearch = async (user) => {
+    await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'On now', exact: true }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search Live TV' }), 'news');
+    await within(screen.getByRole('region', { name: 'On now search results' })).findByRole('button', { name: /Morning report/ });
+  };
+  const chooseSearchVLC = async (user) => {
+    const current = screen.getByRole('region', { name: 'On now search results' });
+    await user.click(within(current).getByRole('button', { name: 'Watch options' }));
+    await user.click(within(current).getByRole('menuitem', { name: 'Watch in VLC' }));
+  };
+
+  it.each([false, true])('opens VLC for the search result after changing from another Browse channel (mobile: %s)', async (mobile) => {
+    installLayoutMedia(mobile);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((input, ...args) => String(input) === '/api/live/channels/41/vlc'
+      ? jsonResponse({ launch_url: launchURL }) : original(input, ...args));
+    openVLC.mockImplementation(() => {
+      expect(screen.getByRole('button', { name: /Back to search results/ })).toBeVisible();
+      expect(screen.getByRole('region', { name: 'Program guide for World News' })).toBeVisible();
+      expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+      return 'playlist';
+    });
+    const user = userEvent.setup();
+    try {
+      renderViewer();
+      await screen.findByRole('navigation', { name: 'Browse or search' });
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), '3');
+      await screen.findByRole('heading', { name: 'Live Match' });
+      await user.click(screen.getByRole('button', { name: 'Watch Live', exact: true }));
+      const oldPlayer = screen.getByTestId('live-player');
+      expect(oldPlayer).toHaveTextContent('Playing Sports Plus');
+      await enterCurrentSearch(user);
+      expect(screen.getByTestId('live-player')).toBe(oldPlayer);
+
+      await chooseSearchVLC(user);
+      await waitFor(() => expect(openVLC).toHaveBeenCalledWith(launchURL, 'World News'));
+      const requests = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/vlc'));
+      expect(requests).toHaveLength(1);
+      expect(requests[0][0]).toBe('/api/live/channels/41/vlc');
+      expect(requests[0][1].method).toBe('POST');
+      expect(requests[0][1].headers.get('X-CSRF-Token')).toBe('csrf-token');
+      expect(requests[0][1].signal.aborted).toBe(false);
+      expect(screen.getByText('Ready to watch in VLC')).toBeVisible();
+      expect(screen.getByRole('searchbox', { name: 'Search Live TV' })).toHaveValue('news');
+      expect(oldPlayer).not.toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: /Back to search results/ }));
+      expect(screen.queryByText('Ready to watch in VLC')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Morning report/ })).toBeVisible();
+      expect(screen.getByRole('searchbox', { name: 'Search Live TV' })).toHaveValue('news');
+      expect(screen.queryByTestId('live-player')).not.toBeInTheDocument();
+    } finally { scrollTo.mockRestore(); }
+  });
+
+  it.each(['Back to results', 'query edit', 'section change'])('aborts a pending Search VLC request on %s and ignores its late response', async (exit) => {
+    installLayoutMedia(false);
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    let resolveVLC;
+    let requestOptions;
+    fetchMock.mockImplementation((input, options, ...args) => {
+      if (String(input) === '/api/live/channels/41/vlc') {
+        requestOptions = options;
+        return new Promise(resolve => { resolveVLC = resolve; });
+      }
+      return original(input, options, ...args);
+    });
+    openVLC.mockReturnValue('playlist');
+    const user = userEvent.setup();
+    try {
+      renderViewer();
+      await enterCurrentSearch(user);
+      await chooseSearchVLC(user);
+      expect(requestOptions.signal.aborted).toBe(false);
+      expect(screen.getByRole('button', { name: /Back to search results/ })).toBeVisible();
+      if (exit === 'Back to results') await user.click(screen.getByRole('button', { name: /Back to search results/ }));
+      else if (exit === 'query edit') await user.type(screen.getByRole('searchbox', { name: 'Search Live TV' }), ' sports');
+      else await chooseSection(user, 'Movies');
+
+      expect(requestOptions.signal.aborted).toBe(true);
+      await act(async () => resolveVLC(await jsonResponse({ launch_url: launchURL })));
+      expect(openVLC).not.toHaveBeenCalled();
+      expect(screen.queryByText('Ready to watch in VLC')).not.toBeInTheDocument();
+      if (exit === 'Back to results') {
+        expect(screen.getByRole('button', { name: /Morning report/ })).toBeVisible();
+        expect(screen.getByRole('searchbox', { name: 'Search Live TV' })).toHaveValue('news');
+      }
+    } finally { scrollTo.mockRestore(); }
+  });
+});
+
+
+describe('Search Record menu focus', () => {
+  it.each(['Cancel', 'Escape'])('returns keyboard focus to the same card after %s without creating a recording', async (dismissal) => {
+    installLayoutMedia(false);
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    const airing = {
+      id: 'search-focus-airing', title: 'Specific search airing',
+      start: new Date(Date.now() - 60000).toISOString(),
+      end: new Date(Date.now() + 3600000).toISOString(),
+      channel: { id: '41', name: 'World News', channel_number: '7' },
+    };
+    fetchMock.mockImplementation((input, ...args) => {
+      const path = String(input);
+      if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: true, dvr: true, guide: false });
+      if (path === '/api/dvr/connection') return jsonResponse({ connected: true, access: 'manage', managed: true });
+      if (path === '/api/dvr/recordings' || /^\/api\/live\/channels\/[0-9]+\/recordings$/.test(path)) {
+        return jsonResponse({ items: [], access: 'manage' });
+      }
+      if (path.startsWith('/api/live/programs/search?')) return jsonResponse({ items: [airing], total: 1 });
+      return original(input, ...args);
+    });
+    const user = userEvent.setup();
+    renderViewer();
+    await user.click(await screen.findByRole('button', { name: 'Search', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'On now', exact: true }));
+    await user.type(screen.getByRole('searchbox', { name: 'Search Live TV' }), 'specific');
+    const current = screen.getByRole('region', { name: 'On now search results' });
+    const result = await within(current).findByRole('button', { name: /Specific search airing/ });
+    const trigger = within(result.closest('article')).getByRole('button', { name: 'Watch options' });
+    act(() => trigger.focus());
+    await user.keyboard('{Enter}');
+    await within(current).findByRole('menuitem', { name: 'Watch & Record' });
+    expect(screen.getByRole('menuitem', { name: 'Watch & Record' })).toHaveFocus();
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitem', { name: 'Record', exact: true })).toHaveFocus();
+    await user.keyboard('{Enter}');
+
+    const dialog = screen.getByRole('dialog', { name: 'Record this airing?' });
+    expect(within(dialog).getByRole('heading', { name: airing.title })).toBeInTheDocument();
+    expect(within(dialog).getByText(airing.channel.name)).toBeInTheDocument();
+    expect(within(dialog).getByText(airingTime(airing))).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Confirm recording' })).toHaveFocus();
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    if (dismissal === 'Escape') await user.keyboard('{Escape}');
+    else {
+      await user.keyboard('{Tab}');
+      expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+      await user.keyboard('{Enter}');
+    }
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+    expect(result).toBeVisible();
+    expect(fetchMock.mock.calls.filter(([input, options]) => String(input).endsWith('/recordings') && options?.method === 'POST')).toHaveLength(0);
+    expect(openVLC).not.toHaveBeenCalled();
+  });
+});
+
+describe('DVR navigation refresh', () => {
+  const recorded = (id, title) => ({
+    id, title, status: 'recorded', playable: true,
+    start: new Date(Date.now() - 3600000).toISOString(),
+    end: new Date(Date.now() - 60000).toISOString(),
+    channel: { id: '41', name: 'World News' },
+  });
+  const installDVR = (recordings) => {
+    installLayoutMedia(false);
+    const fetchMock = installViewerAPI(true);
+    const original = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((input, options, ...args) => {
+      const path = String(input);
+      if (path === '/api/live/search/capabilities') return jsonResponse({ program_search: true, dvr: true, guide: false });
+      if (path === '/api/dvr/connection') return jsonResponse({ connected: true, access: 'manage', managed: true });
+      if (path === '/api/dvr/recordings') return recordings(options);
+      if (/^\/api\/live\/channels\/[0-9]+\/recordings$/.test(path)) return jsonResponse({ items: [], access: 'manage' });
+      return original(input, options, ...args);
+    });
+    return fetchMock;
+  };
+  const listCalls = (fetchMock) => fetchMock.mock.calls.filter(([input]) => String(input) === '/api/dvr/recordings');
+
+  it('refreshes externally changed recordings on entry, repeated DVR selection, and return from Live TV', async () => {
+    let items = [recorded('1', 'Original recording')];
+    const fetchMock = installDVR(() => jsonResponse({ items, access: 'manage' }));
+    const user = userEvent.setup(); renderViewer();
+    await waitFor(() => expect(listCalls(fetchMock)).toHaveLength(1));
+    items = [recorded('2', 'Recorded elsewhere')];
+    await chooseSection(user, 'DVR');
+    await screen.findByRole('heading', { name: 'Recorded elsewhere' });
+    expect(listCalls(fetchMock)).toHaveLength(2);
+    expect(screen.queryByRole('heading', { name: 'Original recording' })).not.toBeInTheDocument();
+
+    items = [recorded('3', 'Updated again')];
+    await chooseSection(user, 'DVR');
+    await screen.findByRole('heading', { name: 'Updated again' });
+    expect(listCalls(fetchMock)).toHaveLength(3);
+    await chooseSection(user, 'Live TV');
+    items = [recorded('4', 'Fresh after returning')];
+    await chooseSection(user, 'DVR');
+    await screen.findByRole('heading', { name: 'Fresh after returning' });
+    expect(listCalls(fetchMock)).toHaveLength(4);
+  });
+
+  it('aborts an older refresh and ignores its late response after navigating back to DVR', async () => {
+    let resolveStale, staleSignal;
+    let requests = 0;
+    const fetchMock = installDVR((options) => {
+      requests += 1;
+      if (requests === 2) {
+        staleSignal = options.signal;
+        return new Promise(resolve => { resolveStale = resolve; });
+      }
+      return jsonResponse({ items: [recorded(String(requests), requests === 1 ? 'Initial recording' : 'Current recording')], access: 'manage' });
+    });
+    const user = userEvent.setup(); renderViewer();
+    await waitFor(() => expect(listCalls(fetchMock)).toHaveLength(1));
+    await chooseSection(user, 'DVR');
+    await waitFor(() => expect(staleSignal).toBeDefined());
+    await chooseSection(user, 'Live TV');
+    await chooseSection(user, 'DVR');
+    await screen.findByRole('heading', { name: 'Current recording' });
+    expect(staleSignal.aborted).toBe(true);
+    await act(async () => resolveStale(await jsonResponse({ items: [recorded('99', 'Stale recording')], access: 'manage' })));
+    expect(screen.queryByRole('heading', { name: 'Stale recording' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Current recording' })).toBeInTheDocument();
+  });
+
+  it('refreshes on return from playback without resetting the player while it is open', async () => {
+    let items = [recorded('1', 'Playing recording')];
+    const fetchMock = installDVR(() => jsonResponse({ items, access: 'manage' }));
+    const user = userEvent.setup(); renderViewer();
+    await waitFor(() => expect(listCalls(fetchMock)).toHaveLength(1));
+    await chooseSection(user, 'DVR');
+    await screen.findByRole('heading', { name: 'Playing recording' });
+    await user.click(screen.getByRole('button', { name: 'Watch', exact: true }));
+    const player = screen.getByTestId('native-player');
+    items = [...items, recorded('2', 'New during playback')];
+    expect(screen.getByTestId('native-player')).toBe(player);
+    expect(listCalls(fetchMock)).toHaveLength(2);
+    await user.click(screen.getByRole('button', { name: 'Stop', exact: true }));
+    await screen.findByRole('heading', { name: 'New during playback' });
+    expect(listCalls(fetchMock)).toHaveLength(3);
+  });
 });

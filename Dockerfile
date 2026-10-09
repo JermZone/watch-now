@@ -11,7 +11,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM golang:1.27.1-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS server-builder
+FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS server-builder
 RUN apk add --no-cache ca-certificates
 RUN mkdir -p /out/share-root/watch-now && chown 65532:65532 /out/share-root/watch-now && chmod 0700 /out/share-root/watch-now
 WORKDIR /src
@@ -29,9 +29,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM scratch
 ARG VERSION=dev
 ARG REVISION=unknown
+ARG SOURCE_URL=https://github.com/JermZone/watch-now
 LABEL org.opencontainers.image.title="Watch Now" \
       org.opencontainers.image.description="A web player for Dispatcharr. Independent, open-source viewer companion." \
-      org.opencontainers.image.source="https://github.com/JermZone/watch-now" \
+      org.opencontainers.image.source="${SOURCE_URL}" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.revision="${REVISION}" \
       org.opencontainers.image.licenses="AGPL-3.0-only"
@@ -40,9 +41,12 @@ COPY THIRD_PARTY_NOTICES.md /licenses/THIRD_PARTY_NOTICES.md
 COPY --from=frontend-builder /src/frontend/node_modules/react/LICENSE /licenses/react.txt
 COPY --from=frontend-builder /src/frontend/node_modules/react-dom/LICENSE /licenses/react-dom.txt
 COPY --from=frontend-builder /src/frontend/node_modules/mpegts.js/LICENSE /licenses/mpegts.js.txt
+COPY --from=frontend-builder /src/frontend/node_modules/hls.js/LICENSE /licenses/hls.js.txt
 COPY --from=frontend-builder /src/frontend/node_modules/es6-promise/LICENSE /licenses/es6-promise.txt
 COPY --from=frontend-builder /src/frontend/node_modules/events/LICENSE /licenses/events.txt
 COPY --from=frontend-builder /src/frontend/node_modules/scheduler/LICENSE /licenses/scheduler.txt
+COPY --from=frontend-builder /src/frontend/node_modules/media-chrome/LICENSE /licenses/media-chrome.txt
+COPY --from=frontend-builder /src/frontend/node_modules/ce-la-react/LICENSE /licenses/ce-la-react.txt
 COPY --from=server-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=server-builder /out/watch-now /watch-now
 # Copy the parent so the private directory itself is present in the layer. Docker

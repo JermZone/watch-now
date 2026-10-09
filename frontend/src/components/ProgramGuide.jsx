@@ -47,6 +47,7 @@ const ProgramGuide = ({ error, guide, loading, now, onRecord, onRetry }) => {
         <article className="program-card current-program">
           <p className="guide-kicker"><span className="live-dot" />Now</p>
           <h3>{current.title || 'Untitled program'}</h3>
+          {current.subtitle && <p>{current.subtitle}</p>}
           <ProgramTime program={current} />
           {progress !== null && (
             <div
