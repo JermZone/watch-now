@@ -94,6 +94,60 @@ class ReleaseConsistencyTests(unittest.TestCase):
         self.assertIn('image-ref: ${{ steps.release.outputs.image }}', latest)
         self.assertTrue({'compose.dvr.yaml', 'compose.dvr-master.yaml', 'THIRD_PARTY_NOTICES.md', 'PROVENANCE.md'} <= packaging.ROOT_FILES)
 
+    def test_feature_images_have_no_registry_credentials_or_write_permissions(self):
+        source = text('.github/workflows/development-image.yml')
+        self.assertIn("branches: ['feature/**']", source)
+        permissions = list(re.finditer(r'(?m)^( *)permissions:[ \t]*([^\n]*)\n', source))
+        self.assertTrue(permissions)
+        for permission in permissions:
+            inline = permission[2].split('#', 1)[0].strip()
+            if inline:
+                self.assertIn(inline, ['{}', 'read-all'])
+                continue
+            for line in source[permission.end():].splitlines():
+                if not line.strip() or line.lstrip().startswith('#'):
+                    continue
+                if len(line) - len(line.lstrip()) <= len(permission[1]):
+                    break
+                self.assertRegex(line, r'^ +[\w-]+: *[\'\"]?(read|none)[\'\"]? *(?:#.*)?$')
+        self.assertNotRegex(source, r'(?i)\b(secrets|GH_TOKEN|GITHUB_TOKEN)\b|github\.token|ghcr\.io')
+        self.assertNotRegex(source, r'(?i)docker/(login|build-push)-action|\bdocker\s+(login|push)\b')
+        checkouts = [step for step in re.split(r'(?m)^      - ', source) if 'uses: actions/checkout@' in step]
+        self.assertTrue(checkouts)
+        for checkout in checkouts:
+            self.assertRegex(checkout, r'(?m)^          persist-credentials: false$')
+
+    def test_feature_artifact_contains_only_the_successfully_tested_local_image(self):
+        source = text('.github/workflows/development-image.yml')
+        scan = source.index('      - name: Scan development candidate')
+        smoke = source.index('      - name: Smoke test the scanned image')
+        archive = source.index('      - name: Archive the scanned and smoke-tested image')
+        upload = source.index('      - name: Upload development image for separate testing')
+        end = source.index('      - name:', upload + 1)
+        self.assertLess(scan, smoke)
+        self.assertLess(smoke, archive)
+        self.assertLess(archive, upload)
+        self.assertNotRegex(source[scan:end], r'(?m)^ +(if|continue-on-error):')
+        self.assertIn('image="watch-now:dev-$REVISION"', source)
+        self.assertIn('image-ref: watch-now:development', source[scan:smoke])
+        self.assertIn("exit-code: '1'", source[scan:smoke])
+        self.assertIn('watch-now:development', source[smoke:archive])
+        self.assertIn('        shell: bash\n', source[archive:upload])
+        self.assertIn('IMAGE: ${{ steps.image.outputs.image }}', source[archive:upload])
+        self.assertIn('docker tag watch-now:development "$IMAGE"', source[archive:upload])
+        self.assertIn('docker save "$IMAGE" | gzip > "$RUNNER_TEMP/development-image/watch-now-image.tar.gz"', source[archive:upload])
+        self.assertNotIn('docker build', source[archive:])
+        self.assertIn('sha256sum watch-now-image.tar.gz > SHA256SUMS', source[archive:upload])
+        self.assertIn('uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a', source[upload:end])
+        paths = re.search(r'(?m)^          path: \|\n((?:            [^\n]+\n)+)', source[upload:end])
+        self.assertIsNotNone(paths)
+        self.assertEqual([line.strip() for line in paths[1].splitlines()], [
+            '${{ runner.temp }}/development-image/watch-now-image.tar.gz',
+            '${{ runner.temp }}/development-image/SHA256SUMS'])
+        self.assertIn('if-no-files-found: error', source[upload:end])
+        self.assertIn('image: ${NOW_TEST_IMAGE:?Set NOW_TEST_IMAGE to the loaded development image tag}', text('compose.test.yaml'))
+        self.assertIn('    pull_policy: never\n', text('compose.test.yaml'))
+
     def test_ci_and_make_do_not_pin_stale_version_or_household_scripts(self):
         for path in ['Makefile', '.github/workflows/ci.yml', '.github/workflows/release.yml']:
             source = text(path)

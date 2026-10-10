@@ -31,7 +31,7 @@ for files in [["compose.yaml"], ["compose.release.yaml"], ["compose.yaml", "comp
     assert not service["volumes"][0].get("read_only", False)
     assert ("build" in service) == ("compose.build.yaml" in files)
 
-test_env = dict(env, NOW_TEST_IMAGE="ghcr.io/jermzone/watch-now@sha256:" + "0" * 64,
+test_env = dict(env, NOW_TEST_IMAGE="watch-now:dev-" + "0" * 40,
                 NOW_TEST_HOST_BIND="127.0.0.1", NOW_TEST_HOST_PORT="9194")
 test_config = json.loads(subprocess.check_output(
     ["docker", "compose", "-f", "compose.test.yaml", "config", "--format", "json"],
@@ -39,6 +39,7 @@ test_config = json.loads(subprocess.check_output(
 assert set(test_config["services"]) == {"watch-now-test"}
 test_service = test_config["services"]["watch-now-test"]
 assert test_service["image"] == test_env["NOW_TEST_IMAGE"]
+assert test_service["pull_policy"] == "never"
 assert "build" not in test_service and not test_service.get("volumes")
 assert test_service["ports"][0]["published"] == "9194"
 assert test_service["ports"][0]["host_ip"] == "127.0.0.1"
