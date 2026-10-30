@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "hls.js": "1.7.3",
-    "media-chrome": "4.19.3",
+    "media-chrome": "4.19.4",
     "mpegts.js": "1.8.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
