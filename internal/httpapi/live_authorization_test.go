@@ -101,10 +101,16 @@ func TestConcurrentLiveActionsShareOnlyInFlightEligibility(t *testing.T) {
 		handler := newTestHandler(t, fake, io.Discard)
 		cookie, _ := loginViewer(t, handler)
 		var wg sync.WaitGroup
+		var admitted, rejected atomic.Int32
 		for range 32 {
 			wg.Go(func() {
 				response := authenticatedRequest(t, handler, cookie, "GET", "/api/live/channels/1/epg", "")
-				if response.Code != 200 {
+				switch response.Code {
+				case 200:
+					admitted.Add(1)
+				case 503:
+					rejected.Add(1)
+				default:
 					t.Errorf("eligible guide status: %d", response.Code)
 				}
 			})
@@ -115,6 +121,9 @@ func TestConcurrentLiveActionsShareOnlyInFlightEligibility(t *testing.T) {
 		}
 		time.Sleep(time.Second)
 		wg.Wait()
+		if admitted.Load() != 4 || rejected.Load() != 28 {
+			t.Fatalf("admitted=%d rejected=%d", admitted.Load(), rejected.Load())
+		}
 		allowed.Store(false)
 		response := authenticatedRequest(t, handler, cookie, "GET", "/api/live/channels/1/epg", "")
 		if response.Code != 404 || calls.Load() != 2 {

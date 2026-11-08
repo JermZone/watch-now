@@ -67,3 +67,11 @@ func TestLoadProgramSearchDefaultAndDisable(t *testing.T) {
 		}
 	}
 }
+
+func TestMalformedDispatcharrURLDoesNotDiscloseInput(t *testing.T) {
+	t.Setenv("DISPATCHARR_URL", "http://private-user:private-password@example.test/%zz?token=private-token")
+	_, err := Load()
+	if err == nil || err.Error() != "DISPATCHARR_URL is malformed" {
+		t.Fatal("malformed URL must return only a fixed diagnostic")
+	}
+}

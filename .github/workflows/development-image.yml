@@ -12,14 +12,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.27.2'
@@ -52,7 +53,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           version="dev-${REVISION:0:12}"
-          image="ghcr.io/${REPOSITORY,,}:dev-$REVISION"
+          image="watch-now:dev-$REVISION"
           docker build --build-arg "VERSION=$version" --build-arg "REVISION=$REVISION" \
             --build-arg "SOURCE_URL=https://github.com/$REPOSITORY/tree/$REVISION" \
             --tag watch-now:development .
@@ -85,24 +86,40 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Sign in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - name: Archive the scanned and smoke-tested image
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/development-image"
+          docker tag watch-now:development "$IMAGE"
+          docker save "$IMAGE" | gzip > "$RUNNER_TEMP/development-image/watch-now-image.tar.gz"
+          cd "$RUNNER_TEMP/development-image"
+          sha256sum watch-now-image.tar.gz > SHA256SUMS
+      - name: Upload development image for separate testing
+        id: artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Publish the scanned and smoke-tested image
+          name: watch-now-development-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/development-image/watch-now-image.tar.gz
+            ${{ runner.temp }}/development-image/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Record development image
         env:
           IMAGE: ${{ steps.image.outputs.image }}
           VERSION: ${{ steps.image.outputs.version }}
+          ARTIFACT_URL: ${{ steps.artifact.outputs.artifact-url }}
         run: |
-          docker tag watch-now:development "$IMAGE"
-          docker push "$IMAGE"
-          digest=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
           {
             echo "Development build: $VERSION"
             echo
-            echo "Pinned image: \`$digest\`"
+            echo "Local image: \`$IMAGE\`"
             echo
-            echo 'For a separate test installation; stable and latest tags are unchanged.'
+            echo "Download: $ARTIFACT_URL"
+            echo
+            echo 'Verify SHA256SUMS and load the archive on your test Docker host.'
+            echo 'This feature candidate is for separate testing and is not published to a registry.'
           } >> "$GITHUB_STEP_SUMMARY"

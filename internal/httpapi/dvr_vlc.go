@@ -66,6 +66,12 @@ func (s *Server) serveVLCRecordingHLS(w http.ResponseWriter, r *http.Request, me
 			writeError(w, 503, "recording_unavailable", "Recorded media is unavailable. Reopen the recording from DVR.")
 		}
 	}
+	_, release, ok := s.vlc.BeginRelay(media.ID)
+	if !ok {
+		writeError(w, 404, "vlc_not_found", "VLC media was not found")
+		return
+	}
+	defer release()
 	_, err := s.authorizeActiveRecording(ctx, viewer, media.ContentID)
 	if err != nil {
 		if errors.Is(err, dispatcharr.ErrNotFound) {
@@ -76,12 +82,12 @@ func (s *Server) serveVLCRecordingHLS(w http.ResponseWriter, r *http.Request, me
 		}
 		return
 	}
-	_, release, ok := s.vlc.BeginRelay(media.ID)
-	if !ok {
+
+	if _, ok := s.vlc.ResolveMedia(media.ID, true); !ok {
 		writeError(w, 404, "vlc_not_found", "VLC media was not found")
 		return
 	}
-	defer release()
+
 	stillOwned := func() bool {
 		current, alive := s.sessions.Get(media.SessionID)
 		_, valid := s.vlc.ResolveMedia(media.ID, false)

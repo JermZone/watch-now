@@ -116,3 +116,21 @@ func TestDVRKeyCannotResurrectOrReplaceNewConnection(t *testing.T) {
 		t.Fatal("logged-out session resurrected")
 	}
 }
+
+func TestAccountCannotMonopolizeSessions(t *testing.T) {
+	store := NewStore(time.Hour, time.Hour, 512)
+	for range maxSessionsPerAccount {
+		if _, err := store.Create(dispatcharr.Credentials{Username: "alias"}, "canonical"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.Create(dispatcharr.Credentials{Username: "different-alias"}, "canonical"); err != ErrCapacity {
+		t.Fatalf("got %v", err)
+	}
+	if _, err := store.Create(dispatcharr.Credentials{Username: "other"}, "other"); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, expired := store.GetWithExpiry("untrusted"); ok || expired {
+		t.Fatal("unknown token treated as expired identity")
+	}
+}

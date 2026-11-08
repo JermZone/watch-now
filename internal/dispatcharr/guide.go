@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -100,7 +101,7 @@ func parseGuide(ctx context.Context, reader io.Reader, channels []Channel, now t
 	return parseGuideDays(ctx, reader, channels, now, 1)
 }
 
-func parseGuideDays(ctx context.Context, reader io.Reader, channels []Channel, now time.Time, days int) (GuideIndex, error) {
+func parseGuideDocument(ctx context.Context, decoder *xml.Decoder, channels []Channel, now time.Time, days int) (GuideIndex, error) {
 	allowed := make(map[string]Channel)
 	ambiguous := make(map[string]bool)
 	for _, channel := range channels {
@@ -117,7 +118,6 @@ func parseGuideDays(ctx context.Context, reader io.Reader, channels []Channel, n
 	}
 	mapped := make(map[string]Channel)
 	defined := make(map[string]bool)
-	decoder := xml.NewDecoder(reader)
 	horizon := now.Add(time.Duration(days) * 24 * time.Hour)
 	index := GuideIndex{Programs: []GuideProgram{}, FetchedAt: now, WindowEnd: horizon}
 	scanned := 0
@@ -274,20 +274,42 @@ func parseGuideDays(ctx context.Context, reader io.Reader, channels []Channel, n
 	index.ScannedPrograms = scanned
 	return index, nil
 }
-func normalizedGuideText(text string) string { return strings.Join(strings.Fields(text), " ") }
 
-// Copy bounded, normalized text so a long source field cannot retain its backing buffer.
-func firstGuideText(values []string, limit int) string {
-	for _, value := range values {
-		value = normalizedGuideText(value)
-		if value == "" || !utf8.ValidString(value) {
+// Normalize incrementally; never materialize a slice of all whitespace fields.
+func normalizedGuideText(text string) string { return boundedGuideText(text, 65536) }
+
+func boundedGuideText(text string, limit int) string {
+	var result strings.Builder
+	count, pendingSpace := 0, false
+	for _, r := range text {
+		if unicode.IsSpace(r) {
+			pendingSpace = count > 0
 			continue
 		}
-		runes := []rune(value)
-		if len(runes) > limit {
-			runes = runes[:limit]
+		if pendingSpace {
+			if count >= limit {
+				break
+			}
+			result.WriteByte(' ')
+			count++
+			pendingSpace = false
 		}
-		return string(runes)
+		if count >= limit {
+			break
+		}
+		result.WriteRune(r)
+		count++
+	}
+	return strings.TrimSpace(result.String())
+}
+func firstGuideText(values []string, limit int) string {
+	for _, value := range values {
+		if !utf8.ValidString(value) {
+			continue
+		}
+		if text := boundedGuideText(value, limit); text != "" {
+			return text
+		}
 	}
 	return ""
 }

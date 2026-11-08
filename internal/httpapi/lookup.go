@@ -10,8 +10,9 @@ import (
 // Share only overlapping item authorizations, never completed authorization
 // decisions. The fixed capacity bounds both upstream concurrency and memory.
 type itemLookups struct {
-	mu     sync.Mutex
-	active map[string]*itemLookup
+	mu      sync.Mutex
+	active  map[string]*itemLookup
+	waiters int
 }
 
 type itemLookup struct {
@@ -23,7 +24,13 @@ type itemLookup struct {
 func (g *itemLookups) do(ctx context.Context, key string, fetch func() (any, error)) (any, error) {
 	g.mu.Lock()
 	if call, ok := g.active[key]; ok {
+		if g.waiters >= 32 {
+			g.mu.Unlock()
+			return nil, dispatcharr.ErrUnavailable
+		}
+		g.waiters++
 		g.mu.Unlock()
+		defer func() { g.mu.Lock(); g.waiters--; g.mu.Unlock() }()
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()

@@ -116,18 +116,22 @@ func (c *Client) OpenLiveStream(ctx context.Context, credentials Credentials, ch
 }
 
 type Client struct {
-	baseURL       *url.URL
-	httpClient    *http.Client
-	maxResponse   int64
-	maxArtwork    int64
-	mediaSessions *mediaSessionStore
+	baseURL            *url.URL
+	httpClient         *http.Client
+	maxResponse        int64
+	maxArtwork         int64
+	mediaSessions      *mediaSessionStore
+	metadataSlots      chan struct{}
+	metadataAdmissions chan struct{}
 }
 
 func NewClient(baseURL *url.URL, httpClient *http.Client, maxResponse, maxArtwork int64) *Client {
 	copyURL := *baseURL
 	return &Client{
 		baseURL: &copyURL, httpClient: httpClient, maxResponse: maxResponse,
-		maxArtwork: maxArtwork, mediaSessions: newMediaSessionStore(),
+		metadataSlots:      make(chan struct{}, 2),
+		metadataAdmissions: make(chan struct{}, 10),
+		maxArtwork:         maxArtwork, mediaSessions: newMediaSessionStore(),
 	}
 }
 
@@ -336,7 +340,10 @@ func (c *Client) safeArtworkURL(raw string) string {
 	}
 	artworkPath := parsed.EscapedPath()
 	basePath := strings.TrimRight(c.baseURL.EscapedPath(), "/")
-	if basePath != "" && strings.HasPrefix(artworkPath, basePath+"/") {
+	if basePath != "" {
+		if !strings.HasPrefix(artworkPath, basePath+"/") {
+			return ""
+		}
 		artworkPath = strings.TrimPrefix(artworkPath, basePath)
 	}
 	allowedPath := false
@@ -402,6 +409,35 @@ func safeImageType(upstreamType string, data []byte) string {
 }
 
 func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values, destination any) error {
+	if err := c.acquireMetadata(ctx); err != nil {
+		return err
+	}
+	defer c.releaseMetadata()
+	response, err := c.openJSON(ctx, endpoint, query)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	limited := io.LimitReader(response.Body, min(c.maxResponse, maxJSONBytes)+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return fmt.Errorf("%w: read response", ErrUnavailable)
+	}
+	if int64(len(data)) > min(c.maxResponse, maxJSONBytes) {
+		return ErrResponseTooBig
+	}
+	if err := validateJSONBudget(data, 20000); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, destination); err != nil {
+		return fmt.Errorf("%w: invalid JSON", ErrInvalidResponse)
+	}
+	return nil
+}
+
+// openJSON validates status and redirects; the caller owns response.Body.
+func (c *Client) openJSON(ctx context.Context, endpoint string, query url.Values) (*http.Response, error) {
 	requestURL := *c.baseURL
 	requestURL.Path = path.Join(c.baseURL.Path, endpoint)
 	if strings.HasSuffix(endpoint, "/") && !strings.HasSuffix(requestURL.Path, "/") {
@@ -411,7 +447,7 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
-		return fmt.Errorf("create Dispatcharr request: %w", err)
+		return nil, ErrUnavailable
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "Dispatcharr-Now/1.0.0")
@@ -422,32 +458,24 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 	}
 	response, err := jsonClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("%w: request failed", ErrUnavailable)
+		return nil, fmt.Errorf("%w: request failed", ErrUnavailable)
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return response, nil
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return ErrUnauthorized
+		return nil, ErrUnauthorized
 	}
 	if response.StatusCode == http.StatusNotFound {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
+		return nil, fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
 	}
 
-	limited := io.LimitReader(response.Body, c.maxResponse+1)
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return fmt.Errorf("%w: read response", ErrUnavailable)
-	}
-	if int64(len(data)) > c.maxResponse {
-		return ErrResponseTooBig
-	}
-	if err := json.Unmarshal(data, destination); err != nil {
-		return fmt.Errorf("%w: invalid JSON", ErrInvalidResponse)
-	}
-	return nil
+	return nil, ErrUnavailable
 }
 
 func credentialValues(credentials Credentials) url.Values {

@@ -38,25 +38,26 @@ type contextKey string
 const sessionContextKey contextKey = "viewer-session"
 
 type Server struct {
-	shareRequests  chan struct{}
-	shareLimiter   *ratelimit.Limiter
-	dvrRequests    chan struct{}
-	dvrWrites      chan struct{}
-	dvrLimiter     *ratelimit.Limiter
-	liveDVRLimiter *ratelimit.Limiter
-	guideFills     chan struct{}
-	lookups        itemLookups
-	cfg            config.Config
-	dispatcharr    dispatcharr.API
-	sessions       *session.Store
-	cache          *cache.Cache
-	loginLimiter   *ratelimit.Limiter
-	accountLimiter *ratelimit.Limiter
-	playbacks      *playbackRegistry
-	downloads      *downloadLimiter
-	vlc            *vlcstore.Store
-	logger         *slog.Logger
-	static         http.Handler
+	metadataRequests chan struct{}
+	shareRequests    chan struct{}
+	shareLimiter     *ratelimit.Limiter
+	dvrRequests      chan struct{}
+	dvrWrites        chan struct{}
+	dvrLimiter       *ratelimit.Limiter
+	liveDVRLimiter   *ratelimit.Limiter
+	guideFills       chan struct{}
+	lookups          itemLookups
+	cfg              config.Config
+	dispatcharr      dispatcharr.API
+	sessions         *session.Store
+	cache            *cache.Cache
+	loginLimiter     *ratelimit.Limiter
+	accountLimiter   *ratelimit.Limiter
+	playbacks        *playbackRegistry
+	downloads        *downloadLimiter
+	vlc              *vlcstore.Store
+	logger           *slog.Logger
+	static           http.Handler
 }
 
 type errorResponse struct {
@@ -111,6 +112,7 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 }
 
 func (s *Server) routes() http.Handler {
+	s.metadataRequests = make(chan struct{}, 4)
 	mux := http.NewServeMux()
 	for _, pattern := range []string{"GET /api/share", "POST /api/share", "POST /api/share/resolve"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleShare)))
@@ -122,35 +124,35 @@ func (s *Server) routes() http.Handler {
 	} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleActiveRecording)))
 	}
-	mux.Handle("GET /api/live/guide", s.requireSession(http.HandlerFunc(s.handleTVGuide)))
+	mux.Handle("GET /api/live/guide", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleTVGuide))))
 	for _, pattern := range []string{"GET /api/dvr/connection", "POST /api/dvr/connection", "DELETE /api/dvr/connection", "GET /api/dvr/recordings", "POST /api/dvr/recordings", "DELETE /api/dvr/recordings/{recording_id}", "POST /api/dvr/recordings/{recording_id}/{action}", "GET /api/dvr/recordings/{recording_id}/{resource}"} {
 		mux.Handle(pattern, s.requireSession(http.HandlerFunc(s.handleDVR)))
 	}
 	mux.HandleFunc("GET /api/health/live", s.handleLiveness)
-	mux.HandleFunc("GET /api/health/ready", s.handleReadiness)
-	mux.Handle("GET /api/diagnostics/dispatcharr", s.requireSession(http.HandlerFunc(s.handleDiagnostics)))
+	mux.Handle("GET /api/health/ready", s.boundMetadata(http.HandlerFunc(s.handleReadiness)))
+	mux.Handle("GET /api/diagnostics/dispatcharr", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleDiagnostics))))
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.Handle("POST /api/auth/logout", s.requireSession(http.HandlerFunc(s.handleLogout)))
 	mux.Handle("GET /api/session", s.requireSession(http.HandlerFunc(s.handleSession)))
 	mux.Handle("GET /api/live/search/capabilities", s.requireSession(http.HandlerFunc(s.handleSearchCapabilities)))
-	mux.Handle("GET /api/live/programs/search", s.requireSession(http.HandlerFunc(s.handleProgramSearch)))
-	mux.Handle("GET /api/live/categories", s.requireSession(http.HandlerFunc(s.handleCategories)))
-	mux.Handle("GET /api/live/channels", s.requireSession(http.HandlerFunc(s.handleChannels)))
-	mux.Handle("GET /api/live/channels/{channel_id}/epg", s.requireSession(http.HandlerFunc(s.handleEPG)))
+	mux.Handle("GET /api/live/programs/search", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleProgramSearch))))
+	mux.Handle("GET /api/live/categories", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleCategories))))
+	mux.Handle("GET /api/live/channels", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleChannels))))
+	mux.Handle("GET /api/live/channels/{channel_id}/epg", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleEPG))))
 	mux.Handle("GET /api/live/channels/{channel_id}/recordings", s.requireSession(http.HandlerFunc(s.handleLiveRecordings)))
 	mux.Handle("GET /api/live/channels/{channel_id}/artwork", s.requireSession(http.HandlerFunc(s.handleArtwork)))
 	mux.Handle("GET /api/live/channels/{channel_id}/stream", s.requireSession(http.HandlerFunc(s.handleLiveStream)))
 	mux.Handle("POST /api/live/channels/{channel_id}/vlc", s.requireSession(http.HandlerFunc(s.handleLiveVLC)))
-	mux.Handle("GET /api/movies/categories", s.requireSession(http.HandlerFunc(s.handleMovieCategories)))
-	mux.Handle("GET /api/movies", s.requireSession(http.HandlerFunc(s.handleMovies)))
-	mux.Handle("GET /api/movies/{movie_id}", s.requireSession(http.HandlerFunc(s.handleMovieDetail)))
+	mux.Handle("GET /api/movies/categories", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleMovieCategories))))
+	mux.Handle("GET /api/movies", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleMovies))))
+	mux.Handle("GET /api/movies/{movie_id}", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleMovieDetail))))
 	mux.Handle("GET /api/movies/{movie_id}/artwork", s.requireSession(http.HandlerFunc(s.handleMovieArtwork)))
 	mux.Handle("GET /api/movies/{movie_id}/stream", s.requireSession(http.HandlerFunc(s.handleMovieStream)))
 	mux.Handle("GET /api/movies/{movie_id}/download", s.requireSession(http.HandlerFunc(s.handleMovieDownload)))
 	mux.Handle("POST /api/movies/{movie_id}/vlc", s.requireSession(http.HandlerFunc(s.handleMovieVLC)))
-	mux.Handle("GET /api/series/categories", s.requireSession(http.HandlerFunc(s.handleSeriesCategories)))
-	mux.Handle("GET /api/series", s.requireSession(http.HandlerFunc(s.handleSeries)))
-	mux.Handle("GET /api/series/{series_id}", s.requireSession(http.HandlerFunc(s.handleSeriesDetail)))
+	mux.Handle("GET /api/series/categories", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleSeriesCategories))))
+	mux.Handle("GET /api/series", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleSeries))))
+	mux.Handle("GET /api/series/{series_id}", s.requireSession(s.boundMetadata(http.HandlerFunc(s.handleSeriesDetail))))
 	mux.Handle("GET /api/series/{series_id}/artwork", s.requireSession(http.HandlerFunc(s.handleSeriesArtwork)))
 	mux.Handle("GET /api/series/{series_id}/episodes/{episode_id}/stream", s.requireSession(http.HandlerFunc(s.handleEpisodeStream)))
 	mux.Handle("GET /api/series/{series_id}/episodes/{episode_id}/download", s.requireSession(http.HandlerFunc(s.handleEpisodeDownload)))
@@ -530,6 +532,22 @@ func guideAt(programs []dispatcharr.Program, now time.Time) guideResponse {
 }
 
 func (s *Server) writeDispatcharrError(writer http.ResponseWriter, request *http.Request, err error, login bool) {
+	// Fixed classifications only: never log upstream error strings, URLs or bodies.
+	if s.logger != nil && (request.URL.Path == "/api/movies" || request.URL.Path == "/api/series") {
+		reason := "unavailable"
+		switch {
+		case errors.Is(err, dispatcharr.ErrResponseTooBig):
+			reason = "response_limit"
+		case errors.Is(err, dispatcharr.ErrInvalidResponse):
+			reason = "invalid_response"
+		case errors.Is(err, dispatcharr.ErrUnauthorized):
+			reason = "unauthorized"
+		case errors.Is(err, dispatcharr.ErrNotFound):
+			reason = "not_found"
+		}
+		s.logger.Warn("catalog request failed", "reason", reason)
+	}
+
 	switch {
 	case errors.Is(err, dispatcharr.ErrUnauthorized):
 		if login {
@@ -578,9 +596,11 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 			writeError(writer, http.StatusUnauthorized, "session_expired", "Sign in to continue")
 			return
 		}
-		viewerSession, ok := s.sessions.Get(cookie.Value)
+		viewerSession, ok, expired := s.sessions.GetWithExpiry(cookie.Value)
 		if !ok {
-			s.revokeViewerState(cookie.Value)
+			if expired {
+				s.revokeViewerState(viewerSession.ID)
+			}
 			writeError(writer, http.StatusUnauthorized, "session_expired", "Your viewer session expired; sign in again")
 			return
 		}

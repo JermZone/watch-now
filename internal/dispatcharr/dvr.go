@@ -161,6 +161,10 @@ func (c *Client) dvrRequest(ctx context.Context, key, method, endpoint string, b
 	return req, nil
 }
 func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body, target any) error {
+	if err := c.acquireMetadata(ctx); err != nil {
+		return err
+	}
+	defer c.releaseMetadata()
 	req, err := c.dvrRequest(ctx, key, method, endpoint, body)
 	if err != nil {
 		return err
@@ -200,6 +204,9 @@ func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body
 	}
 	if int64(len(data)) > limit {
 		return ErrResponseTooBig
+	}
+	if err := validateJSONBudget(data, 5000); err != nil {
+		return err
 	}
 	if json.Unmarshal(data, target) != nil {
 		return ErrInvalidResponse

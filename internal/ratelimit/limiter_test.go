@@ -22,7 +22,11 @@ func TestLimiterResetsAndBoundsPeers(t *testing.T) {
 	if allowed, _ := limiter.Allow("one"); !allowed {
 		t.Fatal("request was not allowed after reset")
 	}
+	if allowed, _ := limiter.Allow("two"); allowed {
+		t.Fatal("active window was evicted")
+	}
+	now = now.Add(time.Minute)
 	if allowed, _ := limiter.Allow("two"); !allowed {
-		t.Fatal("new peer was not admitted after bounded eviction")
+		t.Fatal("expired window was not reclaimed")
 	}
 }

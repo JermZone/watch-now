@@ -280,7 +280,7 @@ func (s *Server) createVLCHandoff(
 		kind = vlcstore.KindEpisode
 	}
 	created, err := s.vlc.Create(vlcstore.CreateParams{
-		SessionID: viewerSession.ID, Kind: kind, ContentID: spec.contentID,
+		AccountID: viewerSession.Username, SessionID: viewerSession.ID, Kind: kind, ContentID: spec.contentID,
 		ParentSeriesID: spec.parentSeriesID, StreamID: spec.streamID,
 		Extension: spec.extension, DisplayFilename: withExtension(spec.filename, spec.extension),
 		StartPosition: spec.startPosition,
@@ -342,6 +342,12 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
+	media, releaseRelay, ok := s.vlc.BeginRelay(mediaID)
+	if !ok {
+		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+		return
+	}
+	defer releaseRelay()
 	var spec mediaSpec
 	var err error
 	if media.Kind == vlcstore.KindRecording {
@@ -383,12 +389,15 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
-	media, releaseRelay, ok := s.vlc.BeginRelay(mediaID)
+
+	// Only a successful entitlement check renews the authorization. The token
+	// may have expired or been revoked while the check was in flight.
+	media, ok = s.vlc.ResolveMedia(mediaID, true)
 	if !ok {
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
-	defer releaseRelay()
+
 	if media.Kind == vlcstore.KindLive {
 		// Tear down any browser relay before opening the external live stream.
 		// VLC may fetch this URL without the browser's session cookie.

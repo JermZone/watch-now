@@ -20,10 +20,11 @@ const (
 	MediaIdleTTL = 10 * time.Minute
 	// MediaMaxLifetime is the non-extendable lifetime of a media authorization.
 	MediaMaxLifetime = 6 * time.Hour
-	// Limit one viewer from exhausting the global handoff pool. A household
+	// Limit one account across browser sessions. A household
 	// viewer can still keep several concurrent VLC requests or retries alive.
-	maxHandoffsPerSession = 8
+	maxHandoffsPerAccount = 8
 	maxRelaysPerMedia     = 4
+	maxActiveRelays       = 32
 
 	tokenBytes       = 32
 	maxTokenAttempts = 8
@@ -49,6 +50,7 @@ const (
 // browser action. StreamID and Extension must already have been resolved from
 // viewer-authorized catalog data; no client-supplied upstream URL is stored.
 type CreateParams struct {
+	AccountID       string
 	SessionID       string
 	Kind            ContentKind
 	ContentID       string
@@ -73,6 +75,7 @@ type Created struct {
 // ExpiresAt is its current rolling idle deadline; HardExpiresAt never changes.
 type Media struct {
 	ID              string
+	AccountID       string
 	SessionID       string
 	Kind            ContentKind
 	ContentID       string
@@ -115,12 +118,14 @@ type ticketRecord struct {
 // The limit applies to simultaneous media handoffs; consequently both the
 // media map and ticket map are independently bounded by limit.
 type Store struct {
-	mu      sync.Mutex
-	tickets map[string]ticketRecord
-	media   map[string]Media
-	limit   int
-	now     func() time.Time
-	token   func() (string, error)
+	accountRelays map[string]int
+	mu            sync.Mutex
+	tickets       map[string]ticketRecord
+	media         map[string]Media
+	limit         int
+	activeRelays  int
+	now           func() time.Time
+	token         func() (string, error)
 }
 
 // NewStore creates a fail-closed store. A non-positive limit creates a valid
@@ -130,11 +135,12 @@ func NewStore(limit int) *Store {
 		limit = 0
 	}
 	return &Store{
-		tickets: make(map[string]ticketRecord),
-		media:   make(map[string]Media),
-		limit:   limit,
-		now:     time.Now,
-		token:   randomToken,
+		accountRelays: make(map[string]int),
+		tickets:       make(map[string]ticketRecord),
+		media:         make(map[string]Media),
+		limit:         limit,
+		now:           time.Now,
+		token:         randomToken,
 	}
 }
 
@@ -153,13 +159,16 @@ func (s *Store) Create(params CreateParams) (Created, error) {
 	if len(s.media) >= s.limit {
 		return Created{}, ErrCapacity
 	}
+	if params.AccountID == "" {
+		params.AccountID = params.SessionID
+	}
 	owned := 0
 	for _, item := range s.media {
-		if item.SessionID == params.SessionID {
+		if item.AccountID == params.AccountID {
 			owned++
 		}
 	}
-	if owned >= maxHandoffsPerSession {
+	if owned >= maxHandoffsPerAccount {
 		return Created{}, ErrCapacity
 	}
 
@@ -178,6 +187,7 @@ func (s *Store) Create(params CreateParams) (Created, error) {
 	revoked := make(chan struct{})
 	item := Media{
 		ID:              mediaID,
+		AccountID:       params.AccountID,
 		SessionID:       params.SessionID,
 		Kind:            params.Kind,
 		ContentID:       params.ContentID,
@@ -222,13 +232,16 @@ func (s *Store) RedeemTicket(ticketID string) (Media, bool) {
 	defer s.mu.Unlock()
 
 	now := s.now()
-	s.removeExpiredLocked(now)
 	ticket, ok := s.tickets[ticketID]
 	if !ok {
 		return Media{}, false
 	}
+	if expired(now, ticket.expiresAt) {
+		delete(s.tickets, ticketID)
+		return Media{}, false
+	}
 	item, ok := s.media[ticket.mediaID]
-	if !ok || !ticketMatchesMedia(ticket, item) {
+	if !ok || !ticketMatchesMedia(ticket, item) || expired(now, item.ExpiresAt) || expired(now, item.HardExpiresAt) {
 		delete(s.tickets, ticketID)
 		if ok {
 			s.removeMediaLocked(item.ID)
@@ -250,9 +263,12 @@ func (s *Store) ResolveMedia(mediaID string, touch bool) (Media, bool) {
 	defer s.mu.Unlock()
 
 	now := s.now()
-	s.removeExpiredLocked(now)
 	item, ok := s.media[mediaID]
 	if !ok {
+		return Media{}, false
+	}
+	if expired(now, item.ExpiresAt) || expired(now, item.HardExpiresAt) {
+		s.removeMediaLocked(mediaID)
 		return Media{}, false
 	}
 	if touch {
@@ -265,8 +281,10 @@ func (s *Store) ResolveMedia(mediaID string, touch bool) (Media, bool) {
 	return item, true
 }
 
-// BeginRelay reserves one of a media token's small number of concurrent relay
-// slots and touches its idle deadline. The returned release must be called.
+// BeginRelay reserves token, account and global capacity before authorization
+// work without extending authorization. Touch only after entitlement succeeds.
+// Call release even after revocation; a
+// revoked but still-running relay must continue to occupy capacity.
 func (s *Store) BeginRelay(mediaID string) (Media, func(), bool) {
 	if !validToken(mediaID) {
 		return Media{}, nil, false
@@ -274,27 +292,32 @@ func (s *Store) BeginRelay(mediaID string) (Media, func(), bool) {
 
 	s.mu.Lock()
 	now := s.now()
-	s.removeExpiredLocked(now)
 	item, ok := s.media[mediaID]
-	if !ok || item.activeRelays >= maxRelaysPerMedia {
+	if !ok || item.activeRelays >= maxRelaysPerMedia || s.activeRelays >= maxActiveRelays || s.accountRelays[item.AccountID] >= 8 || expired(now, item.ExpiresAt) || expired(now, item.HardExpiresAt) {
 		s.mu.Unlock()
 		return Media{}, nil, false
 	}
-	item.ExpiresAt = earlier(now.Add(MediaIdleTTL), item.HardExpiresAt)
 	item.activeRelays++
+	s.activeRelays++
+	s.accountRelays[item.AccountID]++
 	s.media[mediaID] = item
 	revoked := item.revoked
 	s.mu.Unlock()
 
-	release := func() {
+	release := sync.OnceFunc(func() {
 		s.mu.Lock()
 		defer s.mu.Unlock()
+		s.activeRelays--
+		s.accountRelays[item.AccountID]--
+		if s.accountRelays[item.AccountID] == 0 {
+			delete(s.accountRelays, item.AccountID)
+		}
 		current, exists := s.media[mediaID]
 		if exists && current.revoked == revoked && current.activeRelays > 0 {
 			current.activeRelays--
 			s.media[mediaID] = current
 		}
-	}
+	})
 	return item, release, true
 }
 
