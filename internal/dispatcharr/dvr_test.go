@@ -65,6 +65,41 @@ func TestDVRMetadataBoundsAndRedirects(t *testing.T) {
 		})
 	}
 }
+
+func TestDVRRESTAccessFailuresRemainDistinct(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   error
+	}{
+		{401, ErrUnauthorized},
+		{403, ErrForbidden},
+		{429, ErrRateLimited},
+	} {
+		t.Run(fmt.Sprint(tc.status), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/accounts/users/me/" || r.Header.Get("X-API-Key") != "private-key" {
+					t.Fatal("DVR credential transport changed")
+				}
+				w.Header().Set("Retry-After", "17")
+				w.WriteHeader(tc.status)
+				_, _ = io.WriteString(w, "private upstream response")
+			}))
+			defer upstream.Close()
+			base, _ := url.Parse(upstream.URL)
+			client := NewClient(base, upstream.Client(), 1024, 1024)
+			_, err := client.DVRIdentity(context.Background(), "private-key")
+			if !errors.Is(err, tc.want) || strings.Contains(err.Error(), "private") || strings.Contains(err.Error(), "17") {
+				t.Fatalf("unsafe DVR error: %v", err)
+			}
+			if tc.status == 429 {
+				var limited *RateLimitError
+				if !errors.As(err, &limited) || limited.RetryAfterSeconds != 17 {
+					t.Fatalf("DVR retry delay = %v", err)
+				}
+			}
+		})
+	}
+}
 func TestDVRKeyHeaderValidation(t *testing.T) {
 	for _, key := range []string{"", "foo\nbar", "foo bar", strings.Repeat("a", 513)} {
 		base, _ := url.Parse("http://invalid.test")

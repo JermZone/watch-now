@@ -59,9 +59,11 @@ func (s *Server) serveVLCRecordingHLS(w http.ResponseWriter, r *http.Request, me
 		}
 	}()
 	fail := func(err error) {
-		if errors.Is(err, dispatcharr.ErrUnauthorized) {
+		if errors.Is(err, dispatcharr.ErrUnauthorized) || errors.Is(err, dispatcharr.ErrForbidden) {
 			s.revokeDVRVLC(viewer)
 			writeError(w, 404, "vlc_not_found", "Recording access has ended")
+		} else if errors.Is(err, dispatcharr.ErrRateLimited) {
+			writeDispatcharrRateLimit(w, err)
 		} else {
 			writeError(w, 503, "recording_unavailable", "Recorded media is unavailable. Reopen the recording from DVR.")
 		}

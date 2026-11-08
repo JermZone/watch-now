@@ -549,6 +549,8 @@ func (s *Server) writeDispatcharrError(writer http.ResponseWriter, request *http
 	}
 
 	switch {
+	case errors.Is(err, dispatcharr.ErrRateLimited):
+		writeDispatcharrRateLimit(writer, err)
 	case errors.Is(err, dispatcharr.ErrUnauthorized):
 		if login {
 			writeError(writer, http.StatusUnauthorized, "invalid_credentials", "Dispatcharr did not accept those viewer credentials")
@@ -557,6 +559,12 @@ func (s *Server) writeDispatcharrError(writer http.ResponseWriter, request *http
 			s.revokeViewerState(viewerSession.ID)
 			s.expireSessionCookie(writer, request)
 			writeError(writer, http.StatusUnauthorized, "session_expired", "The Dispatcharr viewer credentials are no longer accepted")
+		}
+	case errors.Is(err, dispatcharr.ErrForbidden):
+		if login {
+			writeError(writer, http.StatusForbidden, "dispatcharr_access_denied", "Dispatcharr denied this connection. Check XC API network access for Watch Now.")
+		} else {
+			writeError(writer, http.StatusForbidden, "dispatcharr_access_denied", "Dispatcharr denied this request. Check XC API network access and viewer permissions.")
 		}
 	case errors.Is(err, dispatcharr.ErrInvalidResponse):
 		writeError(writer, http.StatusBadGateway, "unsupported_interface", "Dispatcharr returned an XC response that Now could not understand")
@@ -567,6 +575,14 @@ func (s *Server) writeDispatcharrError(writer http.ResponseWriter, request *http
 	default:
 		writeError(writer, http.StatusBadGateway, "dispatcharr_unavailable", "Dispatcharr could not be reached")
 	}
+}
+
+func writeDispatcharrRateLimit(writer http.ResponseWriter, err error) {
+	var limited *dispatcharr.RateLimitError
+	if errors.As(err, &limited) && limited.RetryAfterSeconds > 0 {
+		writer.Header().Set("Retry-After", strconv.Itoa(min(limited.RetryAfterSeconds, 3600)))
+	}
+	writeError(writer, http.StatusTooManyRequests, "upstream_rate_limited", "Dispatcharr is temporarily limiting requests. Try again shortly.")
 }
 
 func (s *Server) revokeViewerState(sessionID string) {

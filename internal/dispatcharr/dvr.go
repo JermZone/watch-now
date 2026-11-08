@@ -176,8 +176,8 @@ func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body
 		return ErrUnavailable
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		return ErrUnauthorized
+	if failure := upstreamAccessError(resp); failure != nil {
+		return failure
 	}
 	if resp.StatusCode == 404 {
 		return ErrNotFound
@@ -330,18 +330,18 @@ func (c *Client) DVROpen(ctx context.Context, key, id, byteRange string) (MediaS
 	if err != nil {
 		return MediaStream{}, ErrUnavailable
 	}
-	var failure error
-	switch {
-	case resp.StatusCode == 401 || resp.StatusCode == 403:
-		failure = ErrUnauthorized
-	case resp.StatusCode == 404:
-		failure = ErrNotFound
-	case resp.StatusCode >= 300 && resp.StatusCode < 400:
-		failure = ErrRedirect
-	case resp.StatusCode == 416:
-		failure = &RangeRejectedError{contentRange: safeContentRange(resp.Header.Get("Content-Range"))}
-	case resp.StatusCode != 200 && resp.StatusCode != 206:
-		failure = ErrUnavailable
+	failure := upstreamAccessError(resp)
+	if failure == nil {
+		switch {
+		case resp.StatusCode == 404:
+			failure = ErrNotFound
+		case resp.StatusCode >= 300 && resp.StatusCode < 400:
+			failure = ErrRedirect
+		case resp.StatusCode == 416:
+			failure = &RangeRejectedError{contentRange: safeContentRange(resp.Header.Get("Content-Range"))}
+		case resp.StatusCode != 200 && resp.StatusCode != 206:
+			failure = ErrUnavailable
+		}
 	}
 	if failure != nil {
 		resp.Body.Close()

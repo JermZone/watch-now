@@ -155,3 +155,6 @@ func compactMovie(m *Movie) int64 {
 func compactSeries(s *Series) int64 {
 	return compactStrings(&s.ID, &s.Name, &s.CategoryID, &s.Year, &s.Rating, &s.Genre, &s.Plot, &s.artworkURL)
 }
+func compactChannel(c *Channel) int64 {
+	return compactStrings(&c.ID, &c.Name, &c.ChannelNumber, &c.CategoryID, &c.artworkURL, &c.epgID)
+}

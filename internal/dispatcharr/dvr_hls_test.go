@@ -257,7 +257,7 @@ func TestDVRHLSHTTPFailuresStayNarrow(t *testing.T) {
 		status int
 		want   error
 	}{
-		{401, ErrUnauthorized}, {403, ErrUnauthorized}, {404, ErrNotFound}, {206, ErrUnavailable}, {500, ErrUnavailable},
+		{401, ErrUnauthorized}, {403, ErrForbidden}, {404, ErrNotFound}, {429, ErrRateLimited}, {206, ErrUnavailable}, {500, ErrUnavailable},
 	} {
 		client, _ := recordingHLSClient(t, func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(tc.status)

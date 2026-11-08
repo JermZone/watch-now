@@ -100,9 +100,9 @@ func (c *Client) OpenLiveStream(ctx context.Context, credentials Credentials, ch
 		response.Body.Close()
 		return LiveStream{}, ErrRedirect
 	}
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+	if failure := upstreamAccessError(response); failure != nil {
 		response.Body.Close()
-		return LiveStream{}, ErrUnauthorized
+		return LiveStream{}, failure
 	}
 	if response.StatusCode == http.StatusNotFound {
 		response.Body.Close()
@@ -199,7 +199,7 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 	if categoryID != "" {
 		query.Set("category_id", categoryID)
 	}
-	var payload []struct {
+	type rawChannel struct {
 		ID         flexibleString `json:"stream_id"`
 		Name       flexibleString `json:"name"`
 		Number     flexibleString `json:"num"`
@@ -207,15 +207,13 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 		StreamIcon flexibleString `json:"stream_icon"`
 		EPGID      flexibleString `json:"epg_channel_id"`
 	}
-	if err := c.getJSON(ctx, "player_api.php", query, &payload); err != nil {
-		return nil, err
-	}
-	channels := make([]Channel, 0, len(payload))
-	for _, raw := range payload {
+	invalidChannel := false
+	channels, err := readCatalog[rawChannel](ctx, c, query, func(raw rawChannel) (Channel, bool) {
 		id := strings.TrimSpace(string(raw.ID))
 		name := strings.TrimSpace(string(raw.Name))
 		if id == "" || name == "" {
-			return nil, fmt.Errorf("%w: live stream missing stream_id or name", ErrInvalidResponse)
+			invalidChannel = true
+			return Channel{}, false
 		}
 		channel := Channel{
 			ID:            id,
@@ -228,7 +226,13 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 			channel.HasArtwork = true
 			channel.artworkURL = artworkURL
 		}
-		channels = append(channels, channel)
+		return channel, true
+	}, compactChannel)
+	if err != nil {
+		return nil, err
+	}
+	if invalidChannel {
+		return nil, fmt.Errorf("%w: live stream missing stream_id or name", ErrInvalidResponse)
 	}
 	return channels, nil
 }
@@ -300,6 +304,9 @@ func (c *Client) MediaArtwork(ctx context.Context, rawURL string) (Artwork, erro
 		return Artwork{}, fmt.Errorf("%w: artwork request failed", ErrUnavailable)
 	}
 	defer response.Body.Close()
+	if failure := upstreamAccessError(response); failure != nil {
+		return Artwork{}, failure
+	}
 	if response.StatusCode == http.StatusNotFound {
 		return Artwork{}, ErrArtworkMissing
 	}
@@ -465,8 +472,8 @@ func (c *Client) openJSON(ctx context.Context, endpoint string, query url.Values
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return nil, ErrUnauthorized
+	if failure := upstreamAccessError(response); failure != nil {
+		return nil, failure
 	}
 	if response.StatusCode == http.StatusNotFound {
 		return nil, ErrNotFound
@@ -489,6 +496,10 @@ func publicError(err error) string {
 	switch {
 	case errors.Is(err, ErrUnauthorized):
 		return "authentication required"
+	case errors.Is(err, ErrForbidden):
+		return "access denied"
+	case errors.Is(err, ErrRateLimited):
+		return "temporarily rate limited"
 	case errors.Is(err, ErrInvalidResponse):
 		return "version response was not understood"
 	case errors.Is(err, ErrResponseTooBig):

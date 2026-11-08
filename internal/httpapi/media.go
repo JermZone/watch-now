@@ -369,6 +369,15 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 			return
 		}
+		if errors.Is(err, dispatcharr.ErrForbidden) {
+			if media.Kind == vlcstore.KindRecording {
+				s.revokeDVRVLC(viewerSession)
+			} else {
+				s.vlc.DeleteSession(media.SessionID)
+			}
+			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+			return
+		}
 		if errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, errChannelNotFound) || errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) {
 			s.vlc.DeleteSession(media.SessionID)
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
@@ -377,6 +386,10 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		// A canceled probe or an upstream metadata failure must not revoke a
 		// previously authorized stream. Every retry still rechecks access.
 		if request.Context().Err() != nil {
+			return
+		}
+		if errors.Is(err, dispatcharr.ErrRateLimited) {
+			writeDispatcharrRateLimit(writer, err)
 			return
 		}
 		s.logger.Warn("VLC media recheck failed", "reason", vlcRecheckReason(err))
@@ -649,6 +662,15 @@ func (s *Server) writeMediaError(writer http.ResponseWriter, request *http.Reque
 			s.revokeViewerState(sessionID)
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		}
+	case errors.Is(err, dispatcharr.ErrForbidden):
+		if revoke {
+			s.writeDispatcharrError(writer, request, err, false)
+		} else {
+			s.vlc.DeleteSession(sessionID)
+			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+		}
+	case errors.Is(err, dispatcharr.ErrRateLimited):
+		writeDispatcharrRateLimit(writer, err)
 	case errors.Is(err, dispatcharr.ErrNotFound), errors.Is(err, dispatcharr.ErrInvalidMedia):
 		writeError(writer, http.StatusNotFound, "media_not_found", "Media is not available to this viewer")
 	default:

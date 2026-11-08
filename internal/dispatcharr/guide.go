@@ -76,8 +76,8 @@ func (c *Client) LiveGuideDays(ctx context.Context, credentials Credentials, cha
 		return GuideIndex{}, ErrUnavailable
 	}
 	defer response.Body.Close()
-	if response.StatusCode == 401 || response.StatusCode == 403 {
-		return GuideIndex{}, ErrUnauthorized
+	if failure := upstreamAccessError(response); failure != nil {
+		return GuideIndex{}, failure
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return GuideIndex{}, ErrUnavailable
