@@ -299,3 +299,31 @@ func TestDVRPlaybackErrorsAreActionSpecific(t *testing.T) {
 		t.Fatal("playback error suggests recording mutation retry")
 	}
 }
+
+func TestDVRUpstreamRateLimitAndPermissionErrorMapping(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		masterKey string
+		status    int
+		code      string
+		retryWait string
+	}{
+		{"personal key forbidden", dispatcharr.ErrForbidden, "", 403, "dvr_access_denied", ""},
+		{"master key forbidden", dispatcharr.ErrForbidden, "master-key", 503, "dvr_service_unavailable", ""},
+		{"personal key limited", &dispatcharr.RateLimitError{RetryAfterSeconds: 27}, "", 429, "upstream_rate_limited", "27"},
+		{"master key limited", &dispatcharr.RateLimitError{RetryAfterSeconds: 99999}, "master-key", 429, "upstream_rate_limited", "3600"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := &Server{}
+			server.cfg.DVRMasterAPIKey = tc.masterKey
+			request := httptest.NewRequest(http.MethodGet, "http://now.test/api/dvr/recordings", nil)
+			request = request.WithContext(context.WithValue(request.Context(), sessionContextKey, session.Session{}))
+			response := httptest.NewRecorder()
+			server.dvrError(response, request, tc.err)
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.code) || response.Header().Get("Retry-After") != tc.retryWait {
+				t.Fatalf("DVR status = %d, body = %s, retry = %q", response.Code, response.Body.String(), response.Header().Get("Retry-After"))
+			}
+		})
+	}
+}

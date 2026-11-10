@@ -58,6 +58,47 @@ func TestAuthenticateRejectsInvalidCredentialsWithoutLeakingThem(t *testing.T) {
 	}
 }
 
+func TestXCAccessFailuresRemainDistinctAndSafe(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     int
+		retryAfter string
+		want       error
+		wantDelay  int
+	}{
+		{"bad credentials", 401, "", ErrUnauthorized, 0},
+		{"network blocked", 403, "", ErrForbidden, 0},
+		{"rate limited", 429, "37", ErrRateLimited, 37},
+		{"oversized delay", 429, "99999", ErrRateLimited, 3600},
+		{"unsafe delay", 429, "37; private=secret", ErrRateLimited, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := testClient(t, func(writer http.ResponseWriter, request *http.Request) {
+				if request.URL.Path != "/player_api.php" {
+					t.Fatal("unexpected XC endpoint")
+				}
+				if tc.retryAfter != "" {
+					writer.Header().Set("Retry-After", tc.retryAfter)
+				}
+				writer.WriteHeader(tc.status)
+				_, _ = writer.Write([]byte("secret upstream response"))
+			})
+			_, err := client.Authenticate(context.Background(), Credentials{Username: "sensitive-user", Password: "top-secret"})
+			if !errors.Is(err, tc.want) || strings.Contains(err.Error(), "top-secret") || strings.Contains(err.Error(), "secret upstream") || strings.Contains(err.Error(), tc.retryAfter) && tc.retryAfter != "" {
+				t.Fatalf("unsafe XC error: %v", err)
+			}
+			var limited *RateLimitError
+			if errors.As(err, &limited) {
+				if limited.RetryAfterSeconds != tc.wantDelay {
+					t.Fatalf("retry delay = %d, want %d", limited.RetryAfterSeconds, tc.wantDelay)
+				}
+			} else if tc.want == ErrRateLimited {
+				t.Fatal("rate-limit metadata missing")
+			}
+		})
+	}
+}
+
 func TestDiagnosticsTreatsVersionAsMetadata(t *testing.T) {
 	client := testClient(t, func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/api/core/version/" {

@@ -100,9 +100,9 @@ func (c *Client) OpenLiveStream(ctx context.Context, credentials Credentials, ch
 		response.Body.Close()
 		return LiveStream{}, ErrRedirect
 	}
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+	if failure := upstreamAccessError(response); failure != nil {
 		response.Body.Close()
-		return LiveStream{}, ErrUnauthorized
+		return LiveStream{}, failure
 	}
 	if response.StatusCode == http.StatusNotFound {
 		response.Body.Close()
@@ -116,18 +116,22 @@ func (c *Client) OpenLiveStream(ctx context.Context, credentials Credentials, ch
 }
 
 type Client struct {
-	baseURL       *url.URL
-	httpClient    *http.Client
-	maxResponse   int64
-	maxArtwork    int64
-	mediaSessions *mediaSessionStore
+	baseURL            *url.URL
+	httpClient         *http.Client
+	maxResponse        int64
+	maxArtwork         int64
+	mediaSessions      *mediaSessionStore
+	metadataSlots      chan struct{}
+	metadataAdmissions chan struct{}
 }
 
 func NewClient(baseURL *url.URL, httpClient *http.Client, maxResponse, maxArtwork int64) *Client {
 	copyURL := *baseURL
 	return &Client{
 		baseURL: &copyURL, httpClient: httpClient, maxResponse: maxResponse,
-		maxArtwork: maxArtwork, mediaSessions: newMediaSessionStore(),
+		metadataSlots:      make(chan struct{}, 2),
+		metadataAdmissions: make(chan struct{}, 10),
+		maxArtwork:         maxArtwork, mediaSessions: newMediaSessionStore(),
 	}
 }
 
@@ -195,7 +199,7 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 	if categoryID != "" {
 		query.Set("category_id", categoryID)
 	}
-	var payload []struct {
+	type rawChannel struct {
 		ID         flexibleString `json:"stream_id"`
 		Name       flexibleString `json:"name"`
 		Number     flexibleString `json:"num"`
@@ -203,15 +207,13 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 		StreamIcon flexibleString `json:"stream_icon"`
 		EPGID      flexibleString `json:"epg_channel_id"`
 	}
-	if err := c.getJSON(ctx, "player_api.php", query, &payload); err != nil {
-		return nil, err
-	}
-	channels := make([]Channel, 0, len(payload))
-	for _, raw := range payload {
+	invalidChannel := false
+	channels, err := readCatalog[rawChannel](ctx, c, query, func(raw rawChannel) (Channel, bool) {
 		id := strings.TrimSpace(string(raw.ID))
 		name := strings.TrimSpace(string(raw.Name))
 		if id == "" || name == "" {
-			return nil, fmt.Errorf("%w: live stream missing stream_id or name", ErrInvalidResponse)
+			invalidChannel = true
+			return Channel{}, false
 		}
 		channel := Channel{
 			ID:            id,
@@ -224,7 +226,13 @@ func (c *Client) LiveChannels(ctx context.Context, credentials Credentials, cate
 			channel.HasArtwork = true
 			channel.artworkURL = artworkURL
 		}
-		channels = append(channels, channel)
+		return channel, true
+	}, compactChannel)
+	if err != nil {
+		return nil, err
+	}
+	if invalidChannel {
+		return nil, fmt.Errorf("%w: live stream missing stream_id or name", ErrInvalidResponse)
 	}
 	return channels, nil
 }
@@ -296,6 +304,9 @@ func (c *Client) MediaArtwork(ctx context.Context, rawURL string) (Artwork, erro
 		return Artwork{}, fmt.Errorf("%w: artwork request failed", ErrUnavailable)
 	}
 	defer response.Body.Close()
+	if failure := upstreamAccessError(response); failure != nil {
+		return Artwork{}, failure
+	}
 	if response.StatusCode == http.StatusNotFound {
 		return Artwork{}, ErrArtworkMissing
 	}
@@ -336,7 +347,10 @@ func (c *Client) safeArtworkURL(raw string) string {
 	}
 	artworkPath := parsed.EscapedPath()
 	basePath := strings.TrimRight(c.baseURL.EscapedPath(), "/")
-	if basePath != "" && strings.HasPrefix(artworkPath, basePath+"/") {
+	if basePath != "" {
+		if !strings.HasPrefix(artworkPath, basePath+"/") {
+			return ""
+		}
 		artworkPath = strings.TrimPrefix(artworkPath, basePath)
 	}
 	allowedPath := false
@@ -402,6 +416,35 @@ func safeImageType(upstreamType string, data []byte) string {
 }
 
 func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values, destination any) error {
+	if err := c.acquireMetadata(ctx); err != nil {
+		return err
+	}
+	defer c.releaseMetadata()
+	response, err := c.openJSON(ctx, endpoint, query)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	limited := io.LimitReader(response.Body, min(c.maxResponse, maxJSONBytes)+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return fmt.Errorf("%w: read response", ErrUnavailable)
+	}
+	if int64(len(data)) > min(c.maxResponse, maxJSONBytes) {
+		return ErrResponseTooBig
+	}
+	if err := validateJSONBudget(data, 20000); err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, destination); err != nil {
+		return fmt.Errorf("%w: invalid JSON", ErrInvalidResponse)
+	}
+	return nil
+}
+
+// openJSON validates status and redirects; the caller owns response.Body.
+func (c *Client) openJSON(ctx context.Context, endpoint string, query url.Values) (*http.Response, error) {
 	requestURL := *c.baseURL
 	requestURL.Path = path.Join(c.baseURL.Path, endpoint)
 	if strings.HasSuffix(endpoint, "/") && !strings.HasSuffix(requestURL.Path, "/") {
@@ -411,7 +454,7 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL.String(), nil)
 	if err != nil {
-		return fmt.Errorf("create Dispatcharr request: %w", err)
+		return nil, ErrUnavailable
 	}
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "Dispatcharr-Now/1.0.0")
@@ -422,32 +465,24 @@ func (c *Client) getJSON(ctx context.Context, endpoint string, query url.Values,
 	}
 	response, err := jsonClient.Do(request)
 	if err != nil {
-		return fmt.Errorf("%w: request failed", ErrUnavailable)
+		return nil, fmt.Errorf("%w: request failed", ErrUnavailable)
+	}
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
+		return response, nil
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
-		return ErrUnauthorized
+	if failure := upstreamAccessError(response); failure != nil {
+		return nil, failure
 	}
 	if response.StatusCode == http.StatusNotFound {
-		return ErrNotFound
+		return nil, ErrNotFound
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
+		return nil, fmt.Errorf("%w: HTTP %d", ErrUnavailable, response.StatusCode)
 	}
 
-	limited := io.LimitReader(response.Body, c.maxResponse+1)
-	data, err := io.ReadAll(limited)
-	if err != nil {
-		return fmt.Errorf("%w: read response", ErrUnavailable)
-	}
-	if int64(len(data)) > c.maxResponse {
-		return ErrResponseTooBig
-	}
-	if err := json.Unmarshal(data, destination); err != nil {
-		return fmt.Errorf("%w: invalid JSON", ErrInvalidResponse)
-	}
-	return nil
+	return nil, ErrUnavailable
 }
 
 func credentialValues(credentials Credentials) url.Values {
@@ -461,6 +496,10 @@ func publicError(err error) string {
 	switch {
 	case errors.Is(err, ErrUnauthorized):
 		return "authentication required"
+	case errors.Is(err, ErrForbidden):
+		return "access denied"
+	case errors.Is(err, ErrRateLimited):
+		return "temporarily rate limited"
 	case errors.Is(err, ErrInvalidResponse):
 		return "version response was not understood"
 	case errors.Is(err, ErrResponseTooBig):

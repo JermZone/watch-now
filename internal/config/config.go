@@ -65,7 +65,7 @@ func Load() (Config, error) {
 
 	dispatcharrURL, err := url.Parse(rawURL)
 	if err != nil {
-		return Config{}, fmt.Errorf("parse DISPATCHARR_URL: %w", err)
+		return Config{}, fmt.Errorf("DISPATCHARR_URL is malformed")
 	}
 	if dispatcharrURL.Scheme != "http" && dispatcharrURL.Scheme != "https" {
 		return Config{}, fmt.Errorf("DISPATCHARR_URL must use http or https")

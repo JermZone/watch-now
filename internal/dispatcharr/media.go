@@ -129,10 +129,10 @@ func (c *Client) OpenMedia(ctx context.Context, credentials Credentials, kind Me
 	if response == nil {
 		return MediaStream{}, ErrUnavailable
 	}
-	if response.StatusCode == http.StatusUnauthorized || response.StatusCode == http.StatusForbidden {
+	if failure := upstreamAccessError(response); failure != nil {
 		response.Body.Close()
 		c.mediaSessions.delete(sessionKey)
-		return MediaStream{}, ErrUnauthorized
+		return MediaStream{}, failure
 	}
 	if response.StatusCode == http.StatusNotFound {
 		response.Body.Close()

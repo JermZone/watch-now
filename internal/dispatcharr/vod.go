@@ -229,19 +229,14 @@ func (c *Client) Movies(ctx context.Context, credentials Credentials, categoryID
 	if categoryID != "" {
 		query.Set("category_id", categoryID)
 	}
-	var payload []rawMovie
-	if err := c.getJSON(ctx, "player_api.php", query, &payload); err != nil {
-		return nil, err
-	}
-	movies := make([]Movie, 0, len(payload))
-	for _, raw := range payload {
+	return readCatalog[rawMovie](ctx, c, query, func(raw rawMovie) (Movie, bool) {
 		id := clean(raw.ID)
 		name := clean(raw.Name)
 		if id == "" || name == "" {
-			continue
+			return Movie{}, false
 		}
 		artworkURL := c.firstSafeArtwork(raw.StreamIcon, raw.MovieImage, raw.CoverBig, raw.Cover)
-		movies = append(movies, Movie{
+		return Movie{
 			ID:         id,
 			Name:       name,
 			CategoryID: clean(raw.CategoryID),
@@ -253,9 +248,8 @@ func (c *Client) Movies(ctx context.Context, credentials Credentials, categoryID
 			HasArtwork: artworkURL != "",
 			artworkURL: artworkURL,
 			container:  normalizedExtension(clean(raw.Container)),
-		})
-	}
-	return movies, nil
+		}, true
+	}, compactMovie)
 }
 
 func (c *Client) MovieDetails(ctx context.Context, credentials Credentials, movieID string) (MovieDetail, error) {
@@ -312,19 +306,14 @@ func (c *Client) Series(ctx context.Context, credentials Credentials, categoryID
 	if categoryID != "" {
 		query.Set("category_id", categoryID)
 	}
-	var payload []rawSeries
-	if err := c.getJSON(ctx, "player_api.php", query, &payload); err != nil {
-		return nil, err
-	}
-	series := make([]Series, 0, len(payload))
-	for _, raw := range payload {
+	return readCatalog[rawSeries](ctx, c, query, func(raw rawSeries) (Series, bool) {
 		id := clean(raw.ID)
 		name := clean(raw.Name)
 		if id == "" || name == "" {
-			continue
+			return Series{}, false
 		}
 		artworkURL := c.firstSafeArtwork(raw.MovieImage, raw.CoverBig, raw.Cover)
-		series = append(series, Series{
+		return Series{
 			ID:         id,
 			Name:       name,
 			CategoryID: clean(raw.CategoryID),
@@ -334,9 +323,8 @@ func (c *Client) Series(ctx context.Context, credentials Credentials, categoryID
 			Plot:       first(clean(raw.Plot), clean(raw.Description)),
 			HasArtwork: artworkURL != "",
 			artworkURL: artworkURL,
-		})
-	}
-	return series, nil
+		}, true
+	}, compactSeries)
 }
 
 func (c *Client) SeriesDetails(ctx context.Context, credentials Credentials, seriesID string) (SeriesDetail, error) {

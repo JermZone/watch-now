@@ -645,6 +645,70 @@ func TestRejectedUpstreamCredentialsRevokeLocalSession(t *testing.T) {
 	}
 }
 
+func TestXCNetworkDenialAndRateLimitDoNotMislabelOrRevoke(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		status    int
+		code      string
+		retryWait string
+	}{
+		{"network denied", dispatcharr.ErrForbidden, http.StatusForbidden, "dispatcharr_access_denied", ""},
+		{"rate limited", &dispatcharr.RateLimitError{RetryAfterSeconds: 37}, http.StatusTooManyRequests, "upstream_rate_limited", "37"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := &fakeDispatcharr{}
+			handler := newTestHandler(t, fake, io.Discard)
+			cookie, _ := loginViewer(t, handler)
+			fake.categoryError = tc.err
+			request := httptest.NewRequest(http.MethodGet, "http://now.test/api/live/categories", nil)
+			request.AddCookie(cookie)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.code) || response.Header().Get("Retry-After") != tc.retryWait {
+				t.Fatalf("XC failure status = %d, body = %s, retry = %q", response.Code, response.Body.String(), response.Header().Get("Retry-After"))
+			}
+			if strings.Contains(response.Body.String(), "credential") || strings.Contains(response.Body.String(), "top-secret") {
+				t.Fatal("access failure exposed credentials or blamed credentials")
+			}
+			sessionRequest := httptest.NewRequest(http.MethodGet, "http://now.test/api/session", nil)
+			sessionRequest.AddCookie(cookie)
+			sessionResponse := httptest.NewRecorder()
+			handler.ServeHTTP(sessionResponse, sessionRequest)
+			if sessionResponse.Code != http.StatusOK {
+				t.Fatal("temporary or network access failure revoked the viewer session")
+			}
+		})
+	}
+}
+
+func TestXCLoginDistinguishesNetworkDenialAndRateLimit(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		status    int
+		code      string
+		retryWait string
+	}{
+		{"network denied", dispatcharr.ErrForbidden, http.StatusForbidden, "dispatcharr_access_denied", ""},
+		{"rate limited", &dispatcharr.RateLimitError{RetryAfterSeconds: 41}, http.StatusTooManyRequests, "upstream_rate_limited", "41"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler := newTestHandler(t, &fakeDispatcharr{authError: tc.err}, io.Discard)
+			request := httptest.NewRequest(http.MethodPost, "http://now.test/api/auth/login", strings.NewReader(`{"username":"viewer","password":"top-secret"}`))
+			request.Header.Set("Origin", "http://now.test")
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tc.status || !strings.Contains(response.Body.String(), tc.code) || response.Header().Get("Retry-After") != tc.retryWait {
+				t.Fatalf("login status = %d, body = %s, retry = %q", response.Code, response.Body.String(), response.Header().Get("Retry-After"))
+			}
+			if strings.Contains(response.Body.String(), "top-secret") || strings.Contains(response.Body.String(), "invalid_credentials") {
+				t.Fatal("upstream access failure was misreported or leaked credentials")
+			}
+		})
+	}
+}
+
 func TestLoginRateLimit(t *testing.T) {
 	fake := &fakeDispatcharr{authError: dispatcharr.ErrUnauthorized}
 	handler := newTestHandler(t, fake, io.Discard)

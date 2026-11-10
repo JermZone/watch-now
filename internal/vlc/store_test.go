@@ -214,8 +214,8 @@ func TestStoreCapacityFailsClosedAndExpiredStateFreesCapacity(t *testing.T) {
 }
 
 func TestSingleViewerCannotExhaustGlobalCapacity(t *testing.T) {
-	store := NewStore(maxHandoffsPerSession + 4)
-	for index := range maxHandoffsPerSession {
+	store := NewStore(maxHandoffsPerAccount + 4)
+	for index := range maxHandoffsPerAccount {
 		if _, err := store.Create(movieParams("one-viewer", fmt.Sprint(index))); err != nil {
 			t.Fatalf("create %d: %v", index, err)
 		}
@@ -430,5 +430,134 @@ func TestRecordingStartChoiceAndBootstrapAreIsolated(t *testing.T) {
 	params.Kind = KindMovie
 	if _, err := store.Create(params); err != ErrInvalidInput {
 		t.Fatal("start position accepted for non-recording media")
+	}
+}
+
+func TestAggregateRelaysRemainCountedUntilRelease(t *testing.T) {
+	store := NewStore(1024)
+	var releases []func()
+	for i := 0; i < maxActiveRelays; i++ {
+		params := movieParams(fmt.Sprint(i), "1")
+		created, err := store.Create(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, release, ok := store.BeginRelay(created.MediaID)
+		if !ok {
+			t.Fatalf("relay %d rejected", i)
+		}
+		releases = append(releases, release)
+		store.DeleteSession(params.SessionID)
+	}
+	created, err := store.Create(movieParams("next", "1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := store.BeginRelay(created.MediaID); ok {
+		t.Fatal("revocation freed still-running relays")
+	}
+	releases[0]()
+	releases[0]()
+	if _, release, ok := store.BeginRelay(created.MediaID); !ok {
+		t.Fatal("capacity not released")
+	} else {
+		release()
+	}
+	for _, release := range releases {
+		release()
+	}
+	if store.activeRelays != 0 || len(store.accountRelays) != 0 {
+		t.Fatal("leaked relay counters")
+	}
+}
+func TestHandoffsBoundCanonicalAccountAcrossSessions(t *testing.T) {
+	store := NewStore(1024)
+	for i := 0; i < 8; i++ {
+		params := movieParams(fmt.Sprint(i), "1")
+		params.AccountID = "same"
+		if _, err := store.Create(params); err != nil {
+			t.Fatal(err)
+		}
+	}
+	params := movieParams("ninth", "1")
+	params.AccountID = "same"
+	if _, err := store.Create(params); err != ErrCapacity {
+		t.Fatal("duplicate sessions bypassed quota")
+	}
+}
+
+func TestAccountRelayLimitSurvivesRevocationAndNewSessions(t *testing.T) {
+	store := NewStore(100)
+	var releases []func()
+	for i := 0; i < 8; i++ {
+		params := movieParams(fmt.Sprint(i), "1")
+		params.AccountID = "account"
+		created, err := store.Create(params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, release, ok := store.BeginRelay(created.MediaID)
+		if !ok {
+			t.Fatal("early limit")
+		}
+		releases = append(releases, release)
+		store.DeleteSession(params.SessionID)
+	}
+	params := movieParams("new-session", "1")
+	params.AccountID = "account"
+	created, err := store.Create(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := store.BeginRelay(created.MediaID); ok {
+		t.Fatal("account quota bypassed")
+	}
+	for _, release := range releases {
+		release()
+	}
+	if _, release, ok := store.BeginRelay(created.MediaID); !ok {
+		t.Fatal("quota not released")
+	} else {
+		release()
+	}
+}
+func TestUnknownTokensDoNotSweepSharedExpiry(t *testing.T) {
+	store := NewStore(10)
+	now := time.Now()
+	store.now = func() time.Time { return now }
+	created, err := store.Create(movieParams("owner", "1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(MediaMaxLifetime + time.Second)
+	unknown := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+	store.ResolveMedia(unknown, false)
+	store.RedeemTicket(unknown)
+	store.BeginRelay(unknown)
+	if len(store.media) != 1 || len(store.tickets) != 1 {
+		t.Fatal("unknown token swept shared state")
+	}
+	if _, ok := store.ResolveMedia(created.MediaID, false); ok || len(store.media) != 0 {
+		t.Fatal("known expired media not revoked")
+	}
+}
+
+func TestRelayReservationDoesNotRenewUnverifiedAuthorization(t *testing.T) {
+	store := NewStore(10)
+	now := time.Now()
+	store.now = func() time.Time { return now }
+	created, err := store.Create(movieParams("viewer", "1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now = now.Add(HandshakeTTL / 2)
+	_, release, ok := store.BeginRelay(created.MediaID)
+	if !ok {
+		t.Fatal("reservation failed")
+	}
+	release() // An upstream timeout or canceled authorization must not renew the token.
+	now = created.MediaExpiresAt
+	if _, ok := store.ResolveMedia(created.MediaID, false); ok {
+		t.Fatal("unverified reservation extended authorization")
 	}
 }

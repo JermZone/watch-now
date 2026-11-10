@@ -116,7 +116,7 @@ func (c *Client) DVRHLSManifest(ctx context.Context, key, id string) (RecordingP
 			return RecordingPlaylist{}, ErrRecordingFinalized
 		}
 	}
-	if err := recordingHTTPError(resp.StatusCode); err != nil {
+	if err := recordingHTTPError(resp); err != nil {
 		return RecordingPlaylist{}, err
 	}
 	limit := int64(maxRecordingPlaylistBytes)
@@ -133,10 +133,12 @@ func (c *Client) DVRHLSManifest(ctx context.Context, key, id string) (RecordingP
 	return c.parseRecordingPlaylist(string(body), id)
 }
 
-func recordingHTTPError(status int) error {
+func recordingHTTPError(response *http.Response) error {
+	if failure := upstreamAccessError(response); failure != nil {
+		return failure
+	}
+	status := response.StatusCode
 	switch {
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return ErrUnauthorized
 	case status == http.StatusNotFound:
 		return ErrNotFound
 	case status >= 300 && status < 400:
@@ -280,7 +282,7 @@ func (c *Client) DVRHLSSegment(ctx context.Context, key, id, segment string) (Me
 	if err != nil {
 		return MediaStream{}, ErrUnavailable
 	}
-	if err := recordingHTTPError(resp.StatusCode); err != nil {
+	if err := recordingHTTPError(resp); err != nil {
 		resp.Body.Close()
 		return MediaStream{}, err
 	}

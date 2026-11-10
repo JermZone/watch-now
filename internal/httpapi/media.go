@@ -17,41 +17,61 @@ import (
 )
 
 const (
-	downloadMaxLifetime              = 6 * time.Hour
-	maxConcurrentDownloads           = 16
-	maxConcurrentDownloadsPerSession = 2
+	downloadMaxLifetime                 = 6 * time.Hour
+	maxConcurrentViewerRelays           = 16
+	maxConcurrentViewerRelaysPerAccount = 8
+	maxConcurrentViewerRelaysPerSession = 2
 )
 
-type downloadLimiter struct {
+type viewerRelayReservation struct {
+	accountID string
+	cancel    context.CancelFunc
+	once      sync.Once
+}
+
+func (reservation *viewerRelayReservation) stop() {
+	reservation.once.Do(reservation.cancel)
+}
+
+// viewerRelayLimiter bounds session-authenticated browser, download, and DVR relays.
+type viewerRelayLimiter struct {
 	mu        sync.Mutex
 	total     int
 	nextID    uint64
-	bySession map[string]map[uint64]context.CancelFunc
+	byAccount map[string]int
+	bySession map[string]map[uint64]*viewerRelayReservation
 }
 
-func newDownloadLimiter() *downloadLimiter {
-	return &downloadLimiter{bySession: make(map[string]map[uint64]context.CancelFunc)}
+func newViewerRelayLimiter() *viewerRelayLimiter {
+	return &viewerRelayLimiter{
+		byAccount: make(map[string]int),
+		bySession: make(map[string]map[uint64]*viewerRelayReservation),
+	}
 }
 
-func (limiter *downloadLimiter) acquire(sessionID string, cancel context.CancelFunc) (func(), bool) {
+func (limiter *viewerRelayLimiter) acquire(sessionID, accountID string, cancel context.CancelFunc) (func(), bool) {
 	limiter.mu.Lock()
-	if limiter.total >= maxConcurrentDownloads || len(limiter.bySession[sessionID]) >= maxConcurrentDownloadsPerSession {
+	if limiter.total >= maxConcurrentViewerRelays ||
+		limiter.byAccount[accountID] >= maxConcurrentViewerRelaysPerAccount ||
+		len(limiter.bySession[sessionID]) >= maxConcurrentViewerRelaysPerSession {
 		limiter.mu.Unlock()
 		return nil, false
 	}
 	limiter.nextID++
 	reservationID := limiter.nextID
 	if limiter.bySession[sessionID] == nil {
-		limiter.bySession[sessionID] = make(map[uint64]context.CancelFunc)
+		limiter.bySession[sessionID] = make(map[uint64]*viewerRelayReservation)
 	}
-	limiter.bySession[sessionID][reservationID] = cancel
+	reservation := &viewerRelayReservation{accountID: accountID, cancel: cancel}
+	limiter.bySession[sessionID][reservationID] = reservation
+	limiter.byAccount[accountID]++
 	limiter.total++
 	limiter.mu.Unlock()
 
 	var once sync.Once
 	return func() {
 		once.Do(func() {
-			cancel()
+			reservation.stop()
 			limiter.mu.Lock()
 			defer limiter.mu.Unlock()
 			reservations := limiter.bySession[sessionID]
@@ -59,6 +79,10 @@ func (limiter *downloadLimiter) acquire(sessionID string, cancel context.CancelF
 				return
 			}
 			delete(reservations, reservationID)
+			limiter.byAccount[accountID]--
+			if limiter.byAccount[accountID] == 0 {
+				delete(limiter.byAccount, accountID)
+			}
 			limiter.total--
 			if len(reservations) == 0 {
 				delete(limiter.bySession, sessionID)
@@ -67,15 +91,16 @@ func (limiter *downloadLimiter) acquire(sessionID string, cancel context.CancelF
 	}, true
 }
 
-func (limiter *downloadLimiter) stop(sessionID string) {
+func (limiter *viewerRelayLimiter) stop(sessionID string) {
 	limiter.mu.Lock()
-	reservations := limiter.bySession[sessionID]
-	delete(limiter.bySession, sessionID)
-	limiter.total -= len(reservations)
+	reservations := make([]*viewerRelayReservation, 0, len(limiter.bySession[sessionID]))
+	for _, reservation := range limiter.bySession[sessionID] {
+		reservations = append(reservations, reservation)
+	}
 	limiter.mu.Unlock()
 
-	for _, cancel := range reservations {
-		cancel()
+	for _, reservation := range reservations {
+		reservation.stop()
 	}
 }
 
@@ -127,7 +152,15 @@ func (s *Server) serveBrowserMedia(
 	if !ok {
 		return
 	}
-	streamContext, generation := s.playbacks.start(request.Context(), viewerSession, s.cfg.SessionAbsoluteTTL)
+	limitContext, cancel := context.WithCancel(request.Context())
+	release, ok := s.viewerRelays.acquire(viewerSession.ID, viewerSession.Username, cancel)
+	if !ok {
+		cancel()
+		writeError(writer, http.StatusTooManyRequests, "playback_limit", "Too many streams are already active")
+		return
+	}
+	defer release()
+	streamContext, generation := s.playbacks.start(limitContext, viewerSession, s.cfg.SessionAbsoluteTTL)
 	playbackBegan := false
 	defer func() {
 		s.finishPlayback(viewerSession.ID, generation, playbackBegan)
@@ -162,7 +195,7 @@ func (s *Server) handleMovieDownload(writer http.ResponseWriter, request *http.R
 	}
 	viewerSession := sessionFromContext(request.Context())
 	downloadContext, cancel := boundedDownloadContext(request.Context(), viewerSession, s.cfg.SessionAbsoluteTTL)
-	release, ok := s.downloads.acquire(viewerSession.ID, cancel)
+	release, ok := s.viewerRelays.acquire(viewerSession.ID, viewerSession.Username, cancel)
 	if !ok {
 		cancel()
 		writeError(writer, http.StatusTooManyRequests, "download_limit", "Too many downloads are already active")
@@ -198,7 +231,7 @@ func (s *Server) handleEpisodeDownload(writer http.ResponseWriter, request *http
 	}
 	viewerSession := sessionFromContext(request.Context())
 	downloadContext, cancel := boundedDownloadContext(request.Context(), viewerSession, s.cfg.SessionAbsoluteTTL)
-	release, ok := s.downloads.acquire(viewerSession.ID, cancel)
+	release, ok := s.viewerRelays.acquire(viewerSession.ID, viewerSession.Username, cancel)
 	if !ok {
 		cancel()
 		writeError(writer, http.StatusTooManyRequests, "download_limit", "Too many downloads are already active")
@@ -280,7 +313,7 @@ func (s *Server) createVLCHandoff(
 		kind = vlcstore.KindEpisode
 	}
 	created, err := s.vlc.Create(vlcstore.CreateParams{
-		SessionID: viewerSession.ID, Kind: kind, ContentID: spec.contentID,
+		AccountID: viewerSession.Username, SessionID: viewerSession.ID, Kind: kind, ContentID: spec.contentID,
 		ParentSeriesID: spec.parentSeriesID, StreamID: spec.streamID,
 		Extension: spec.extension, DisplayFilename: withExtension(spec.filename, spec.extension),
 		StartPosition: spec.startPosition,
@@ -342,6 +375,12 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
+	media, releaseRelay, ok := s.vlc.BeginRelay(mediaID)
+	if !ok {
+		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+		return
+	}
+	defer releaseRelay()
 	var spec mediaSpec
 	var err error
 	if media.Kind == vlcstore.KindRecording {
@@ -363,6 +402,15 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 			return
 		}
+		if errors.Is(err, dispatcharr.ErrForbidden) {
+			if media.Kind == vlcstore.KindRecording {
+				s.revokeDVRVLC(viewerSession)
+			} else {
+				s.vlc.DeleteSession(media.SessionID)
+			}
+			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+			return
+		}
 		if errors.Is(err, dispatcharr.ErrNotFound) || errors.Is(err, errChannelNotFound) || errors.Is(err, errMovieNotFound) || errors.Is(err, errSeriesNotFound) || errors.Is(err, errEpisodeNotFound) {
 			s.vlc.DeleteSession(media.SessionID)
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
@@ -371,6 +419,10 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		// A canceled probe or an upstream metadata failure must not revoke a
 		// previously authorized stream. Every retry still rechecks access.
 		if request.Context().Err() != nil {
+			return
+		}
+		if errors.Is(err, dispatcharr.ErrRateLimited) {
+			writeDispatcharrRateLimit(writer, err)
 			return
 		}
 		s.logger.Warn("VLC media recheck failed", "reason", vlcRecheckReason(err))
@@ -383,12 +435,15 @@ func (s *Server) handleVLCMedia(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
-	media, releaseRelay, ok := s.vlc.BeginRelay(mediaID)
+
+	// Only a successful entitlement check renews the authorization. The token
+	// may have expired or been revoked while the check was in flight.
+	media, ok = s.vlc.ResolveMedia(mediaID, true)
 	if !ok {
 		writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		return
 	}
-	defer releaseRelay()
+
 	if media.Kind == vlcstore.KindLive {
 		// Tear down any browser relay before opening the external live stream.
 		// VLC may fetch this URL without the browser's session cookie.
@@ -640,6 +695,15 @@ func (s *Server) writeMediaError(writer http.ResponseWriter, request *http.Reque
 			s.revokeViewerState(sessionID)
 			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
 		}
+	case errors.Is(err, dispatcharr.ErrForbidden):
+		if revoke {
+			s.writeDispatcharrError(writer, request, err, false)
+		} else {
+			s.vlc.DeleteSession(sessionID)
+			writeError(writer, http.StatusNotFound, "vlc_not_found", "VLC media was not found")
+		}
+	case errors.Is(err, dispatcharr.ErrRateLimited):
+		writeDispatcharrRateLimit(writer, err)
 	case errors.Is(err, dispatcharr.ErrNotFound), errors.Is(err, dispatcharr.ErrInvalidMedia):
 		writeError(writer, http.StatusNotFound, "media_not_found", "Media is not available to this viewer")
 	default:

@@ -10,6 +10,8 @@ import (
 	"github.com/JermZone/watch-now/internal/dispatcharr"
 )
 
+const maxSessionsPerAccount = 8
+
 var ErrCapacity = errors.New("session capacity reached")
 
 type Session struct {
@@ -95,6 +97,16 @@ func (s *Store) Create(credentials dispatcharr.Credentials, username string) (Se
 		return Session{}, ErrCapacity
 	}
 
+	owned := 0
+	for _, entry := range s.sessions {
+		if entry.Username == username {
+			owned++
+		}
+	}
+	if owned >= maxSessionsPerAccount {
+		return Session{}, ErrCapacity
+	}
+
 	id, err := randomToken()
 	if err != nil {
 		return Session{}, err
@@ -116,21 +128,31 @@ func (s *Store) Create(credentials dispatcharr.Credentials, username string) (Se
 }
 
 func (s *Store) Get(id string) (Session, bool) {
+	entry, ok, _ := s.GetWithExpiry(id)
+	if !ok {
+		return Session{}, false
+	}
+	return entry, true
+}
+
+// GetWithExpiry distinguishes a genuine expired identity from an unknown token.
+// Only the former may trigger revocation of related viewer state.
+func (s *Store) GetWithExpiry(id string) (Session, bool, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	entry, ok := s.sessions[id]
 	if !ok {
-		return Session{}, false
+		return Session{}, false, false
 	}
 	now := s.now()
 	if s.expired(entry, now) {
 		delete(s.sessions, id)
-		return Session{}, false
+		return entry, false, true
 	}
 	entry.LastSeenAt = now
 	s.sessions[id] = entry
-	return entry, true
+	return entry, true, false
 }
 
 func (s *Store) Delete(id string) {

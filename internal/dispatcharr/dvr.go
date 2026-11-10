@@ -161,6 +161,10 @@ func (c *Client) dvrRequest(ctx context.Context, key, method, endpoint string, b
 	return req, nil
 }
 func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body, target any) error {
+	if err := c.acquireMetadata(ctx); err != nil {
+		return err
+	}
+	defer c.releaseMetadata()
 	req, err := c.dvrRequest(ctx, key, method, endpoint, body)
 	if err != nil {
 		return err
@@ -172,8 +176,8 @@ func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body
 		return ErrUnavailable
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		return ErrUnauthorized
+	if failure := upstreamAccessError(resp); failure != nil {
+		return failure
 	}
 	if resp.StatusCode == 404 {
 		return ErrNotFound
@@ -200,6 +204,9 @@ func (c *Client) dvrJSON(ctx context.Context, key, method, endpoint string, body
 	}
 	if int64(len(data)) > limit {
 		return ErrResponseTooBig
+	}
+	if err := validateJSONBudget(data, 5000); err != nil {
+		return err
 	}
 	if json.Unmarshal(data, target) != nil {
 		return ErrInvalidResponse
@@ -323,18 +330,18 @@ func (c *Client) DVROpen(ctx context.Context, key, id, byteRange string) (MediaS
 	if err != nil {
 		return MediaStream{}, ErrUnavailable
 	}
-	var failure error
-	switch {
-	case resp.StatusCode == 401 || resp.StatusCode == 403:
-		failure = ErrUnauthorized
-	case resp.StatusCode == 404:
-		failure = ErrNotFound
-	case resp.StatusCode >= 300 && resp.StatusCode < 400:
-		failure = ErrRedirect
-	case resp.StatusCode == 416:
-		failure = &RangeRejectedError{contentRange: safeContentRange(resp.Header.Get("Content-Range"))}
-	case resp.StatusCode != 200 && resp.StatusCode != 206:
-		failure = ErrUnavailable
+	failure := upstreamAccessError(resp)
+	if failure == nil {
+		switch {
+		case resp.StatusCode == 404:
+			failure = ErrNotFound
+		case resp.StatusCode >= 300 && resp.StatusCode < 400:
+			failure = ErrRedirect
+		case resp.StatusCode == 416:
+			failure = &RangeRejectedError{contentRange: safeContentRange(resp.Header.Get("Content-Range"))}
+		case resp.StatusCode != 200 && resp.StatusCode != 206:
+			failure = ErrUnavailable
+		}
 	}
 	if failure != nil {
 		resp.Body.Close()

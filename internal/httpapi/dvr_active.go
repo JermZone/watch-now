@@ -52,12 +52,16 @@ func (s *Server) authorizeActiveRecording(ctx context.Context, viewer session.Se
 }
 func (s *Server) activeRecordingError(w http.ResponseWriter, r *http.Request, err error, generation uint64) {
 	viewer := sessionFromContext(r.Context())
-	if errors.Is(err, dispatcharr.ErrUnauthorized) || errors.Is(err, dispatcharr.ErrNotFound) {
+	if errors.Is(err, dispatcharr.ErrUnauthorized) || errors.Is(err, dispatcharr.ErrForbidden) || errors.Is(err, dispatcharr.ErrNotFound) {
 		s.finishPlayback(viewer.ID, generation, true)
 	}
 	switch {
 	case errors.Is(err, dispatcharr.ErrUnauthorized):
 		writeError(w, 403, "dvr_permission_denied", "Recording access could not be verified. Reconnect DVR or ask your administrator.")
+	case errors.Is(err, dispatcharr.ErrForbidden):
+		writeError(w, 403, "dvr_permission_denied", "Dispatcharr denied recording access. Check DVR permissions and server network access.")
+	case errors.Is(err, dispatcharr.ErrRateLimited):
+		writeDispatcharrRateLimit(w, err)
 	case errors.Is(err, dispatcharr.ErrNotFound):
 		writeError(w, 404, "recording_not_found", "Recording is no longer available to this viewer")
 	case errors.Is(err, dispatcharr.ErrRecordingFinalized):
@@ -266,7 +270,7 @@ func (s *Server) handleActiveRecording(w http.ResponseWriter, r *http.Request) {
 	defer streamCancel()
 	unregister := context.AfterFunc(playbackContext, streamCancel)
 	defer unregister()
-	release, ok := s.downloads.acquire(viewer.ID, streamCancel)
+	release, ok := s.viewerRelays.acquire(viewer.ID, viewer.Username, streamCancel)
 	if !ok {
 		writeError(w, 429, "dvr_busy", "Too many recording streams")
 		return

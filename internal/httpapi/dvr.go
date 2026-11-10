@@ -32,8 +32,12 @@ func newDVRRow(recording dispatcharr.Recording, channel dispatcharr.Channel) dvr
 
 func (s *Server) dvrEnabled() bool { _, ok := s.dispatcharr.(dispatcharr.DVRAPI); return ok }
 func (s *Server) dvrError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, dispatcharr.ErrRateLimited) {
+		writeDispatcharrRateLimit(w, err)
+		return
+	}
 	viewer := sessionFromContext(r.Context())
-	if s.cfg.DVRMasterAPIKey != "" && (errors.Is(err, dispatcharr.ErrUnauthorized) || r.URL.Path == "/api/dvr/connection") {
+	if s.cfg.DVRMasterAPIKey != "" && (errors.Is(err, dispatcharr.ErrUnauthorized) || errors.Is(err, dispatcharr.ErrForbidden) || r.URL.Path == "/api/dvr/connection") {
 		writeError(w, 503, "dvr_service_unavailable", "Server-managed DVR is unavailable or access could not be verified. Ask the Watch Now administrator to check the configuration.")
 		return
 	}
@@ -41,6 +45,8 @@ func (s *Server) dvrError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, dispatcharr.ErrUnauthorized):
 		s.sessions.SetDVRKey(viewer.ID, viewer.DVRKey, "")
 		writeError(w, 403, "dvr_reconnect_required", "DVR access was rejected. Reconnect your own Dispatcharr API key.")
+	case errors.Is(err, dispatcharr.ErrForbidden):
+		writeError(w, 403, "dvr_access_denied", "Dispatcharr denied DVR access. Check viewer permissions and server network access.")
 	case errors.Is(err, dispatcharr.ErrNotFound):
 		writeError(w, 404, "recording_not_found", "Recording is not available to this viewer")
 	case errors.Is(err, dispatcharr.ErrRedirect):
@@ -94,7 +100,7 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/dvr/connection" && s.cfg.DVRMasterAPIKey == "" {
 		if r.Method == "DELETE" {
 			s.sessions.SetDVRKey(viewer.ID, viewer.DVRKey, "")
-			s.downloads.stop(viewer.ID)
+			s.viewerRelays.stop(viewer.ID)
 			s.stopPlayback(viewer.ID)
 			s.vlc.DeleteSession(viewer.ID)
 			w.WriteHeader(204)
@@ -368,6 +374,12 @@ func (s *Server) serveDVRFile(w http.ResponseWriter, r *http.Request, api dispat
 	}
 	ctx, cancel := boundedDownloadContext(r.Context(), viewer, s.cfg.SessionAbsoluteTTL)
 	defer cancel()
+	release, ok := s.viewerRelays.acquire(viewer.ID, viewer.Username, cancel)
+	if !ok {
+		writeError(w, 429, "dvr_busy", "Too many recording streams")
+		return
+	}
+	defer release()
 	if r.PathValue("resource") == "stream" {
 		var generation uint64
 		ctx, generation = s.playbacks.start(ctx, viewer, s.cfg.SessionAbsoluteTTL)
@@ -381,12 +393,6 @@ func (s *Server) serveDVRFile(w http.ResponseWriter, r *http.Request, api dispat
 		}
 		begun = true
 	}
-	release, ok := s.downloads.acquire(viewer.ID, cancel)
-	if !ok {
-		writeError(w, 429, "dvr_busy", "Too many recording streams")
-		return
-	}
-	defer release()
 	// Register before the final session check so logout always cancels the relay.
 	current, alive := s.sessions.Get(viewer.ID)
 	if !alive || current.DVRKey != viewer.DVRKey {

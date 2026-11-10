@@ -147,23 +147,34 @@ func TestLiveVLCRechecksAccessAndRevokesOnLogout(t *testing.T) {
 }
 
 func TestLiveVLCRetainsHandoffAfterTemporaryLineupFailure(t *testing.T) {
-	fake := liveVLCFake()
-	handler := newTestHandler(t, fake, io.Discard)
-	cookie, viewer := loginViewer(t, handler)
-	_, mediaURL := createLiveHandoff(t, handler, cookie, viewer.CSRFToken)
-	fake.liveChannels = func(context.Context, dispatcharr.Credentials, string) ([]dispatcharr.Channel, error) {
-		return nil, dispatcharr.ErrUnavailable
-	}
-	failed := httptest.NewRecorder()
-	handler.ServeHTTP(failed, httptest.NewRequest(http.MethodGet, mediaURL, nil))
-	if failed.Code != http.StatusServiceUnavailable || fake.streamCalls != 0 {
-		t.Fatalf("temporary failure = %d", failed.Code)
-	}
-	fake.liveChannels = nil
-	retry := httptest.NewRecorder()
-	handler.ServeHTTP(retry, httptest.NewRequest(http.MethodGet, mediaURL, nil))
-	if retry.Code != http.StatusOK {
-		t.Fatalf("recovery = %d", retry.Code)
+	for _, tc := range []struct {
+		name, retryAfter string
+		err              error
+		status           int
+	}{
+		{"unavailable", "", dispatcharr.ErrUnavailable, http.StatusServiceUnavailable},
+		{"upstream rate limited", "29", &dispatcharr.RateLimitError{RetryAfterSeconds: 29}, http.StatusTooManyRequests},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fake := liveVLCFake()
+			handler := newTestHandler(t, fake, io.Discard)
+			cookie, viewer := loginViewer(t, handler)
+			_, mediaURL := createLiveHandoff(t, handler, cookie, viewer.CSRFToken)
+			fake.liveChannels = func(context.Context, dispatcharr.Credentials, string) ([]dispatcharr.Channel, error) {
+				return nil, tc.err
+			}
+			failed := httptest.NewRecorder()
+			handler.ServeHTTP(failed, httptest.NewRequest(http.MethodGet, mediaURL, nil))
+			if failed.Code != tc.status || failed.Header().Get("Retry-After") != tc.retryAfter || fake.streamCalls != 0 {
+				t.Fatalf("temporary failure = %d, retry = %q", failed.Code, failed.Header().Get("Retry-After"))
+			}
+			fake.liveChannels = nil
+			retry := httptest.NewRecorder()
+			handler.ServeHTTP(retry, httptest.NewRequest(http.MethodGet, mediaURL, nil))
+			if retry.Code != http.StatusOK {
+				t.Fatalf("recovery = %d", retry.Code)
+			}
+		})
 	}
 }
 

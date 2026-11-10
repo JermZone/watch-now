@@ -37,7 +37,14 @@ func (l *Limiter) Allow(key string) (bool, time.Duration) {
 	current, exists := l.peers[key]
 	if !exists || now.Sub(current.windowStart) >= l.window {
 		if !exists && len(l.peers) >= l.maxPeers {
-			l.evictOldest()
+			for k, v := range l.peers {
+				if now.Sub(v.windowStart) >= l.window {
+					delete(l.peers, k)
+				}
+			}
+			if len(l.peers) >= l.maxPeers {
+				return false, l.window
+			}
 		}
 		l.peers[key] = peer{count: 1, windowStart: now, lastSeen: now}
 		return true, 0
@@ -50,16 +57,4 @@ func (l *Limiter) Allow(key string) (bool, time.Duration) {
 	current.count++
 	l.peers[key] = current
 	return true, 0
-}
-
-func (l *Limiter) evictOldest() {
-	var oldestKey string
-	var oldest time.Time
-	for key, current := range l.peers {
-		if oldestKey == "" || current.lastSeen.Before(oldest) {
-			oldestKey = key
-			oldest = current.lastSeen
-		}
-	}
-	delete(l.peers, oldestKey)
 }
