@@ -54,7 +54,7 @@ type Server struct {
 	loginLimiter     *ratelimit.Limiter
 	accountLimiter   *ratelimit.Limiter
 	playbacks        *playbackRegistry
-	downloads        *downloadLimiter
+	viewerRelays     *viewerRelayLimiter
 	vlc              *vlcstore.Store
 	logger           *slog.Logger
 	static           http.Handler
@@ -103,7 +103,7 @@ func New(cfg config.Config, client dispatcharr.API, logger *slog.Logger) http.Ha
 		loginLimiter:   ratelimit.New(cfg.LoginRateLimit, cfg.LoginRateWindow, cfg.LoginRateLimitPeers),
 		accountLimiter: ratelimit.New(accountLimit, cfg.LoginRateWindow, cfg.LoginRateLimitPeers),
 		playbacks:      newPlaybackRegistry(),
-		downloads:      newDownloadLimiter(),
+		viewerRelays:   newViewerRelayLimiter(),
 		vlc:            vlcstore.NewStore(vlcLimit),
 		logger:         logger,
 		static:         spaHandler(cfg.WebRoot),
@@ -289,12 +289,20 @@ func (s *Server) handleLiveStream(writer http.ResponseWriter, request *http.Requ
 		writeError(writer, http.StatusBadRequest, "invalid_channel", "Channel ID is invalid")
 		return
 	}
+	limitContext, cancel := context.WithCancel(request.Context())
+	release, ok := s.viewerRelays.acquire(viewerSession.ID, viewerSession.Username, cancel)
+	if !ok {
+		cancel()
+		writeError(writer, http.StatusTooManyRequests, "playback_limit", "Too many streams are already active")
+		return
+	}
+	defer release()
 
 	// Register before authorization so a concurrent logout can cancel this
 	// request even while the authorized catalog is being fetched. Re-check the
 	// session after registration to close the inverse logout-before-start race.
 	streamContext, generation := s.playbacks.start(
-		request.Context(), viewerSession, s.cfg.SessionAbsoluteTTL,
+		limitContext, viewerSession, s.cfg.SessionAbsoluteTTL,
 	)
 	playbackBegan := false
 	defer func() {
@@ -586,10 +594,12 @@ func writeDispatcharrRateLimit(writer http.ResponseWriter, err error) {
 }
 
 func (s *Server) revokeViewerState(sessionID string) {
-	s.playbacks.stop(sessionID)
-	s.downloads.stop(sessionID)
-	s.vlc.DeleteSession(sessionID)
+	// Remove admission first: requests that passed middleware but have not yet
+	// registered a relay must fail their final session check.
 	s.sessions.Delete(sessionID)
+	s.playbacks.stop(sessionID)
+	s.viewerRelays.stop(sessionID)
+	s.vlc.DeleteSession(sessionID)
 	s.cache.DeletePrefix(sessionID + ":")
 }
 

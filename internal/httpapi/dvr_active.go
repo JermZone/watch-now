@@ -270,7 +270,7 @@ func (s *Server) handleActiveRecording(w http.ResponseWriter, r *http.Request) {
 	defer streamCancel()
 	unregister := context.AfterFunc(playbackContext, streamCancel)
 	defer unregister()
-	release, ok := s.downloads.acquire(viewer.ID, streamCancel)
+	release, ok := s.viewerRelays.acquire(viewer.ID, viewer.Username, streamCancel)
 	if !ok {
 		writeError(w, 429, "dvr_busy", "Too many recording streams")
 		return

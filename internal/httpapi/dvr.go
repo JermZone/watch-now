@@ -100,7 +100,7 @@ func (s *Server) handleDVR(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/dvr/connection" && s.cfg.DVRMasterAPIKey == "" {
 		if r.Method == "DELETE" {
 			s.sessions.SetDVRKey(viewer.ID, viewer.DVRKey, "")
-			s.downloads.stop(viewer.ID)
+			s.viewerRelays.stop(viewer.ID)
 			s.stopPlayback(viewer.ID)
 			s.vlc.DeleteSession(viewer.ID)
 			w.WriteHeader(204)
@@ -374,6 +374,12 @@ func (s *Server) serveDVRFile(w http.ResponseWriter, r *http.Request, api dispat
 	}
 	ctx, cancel := boundedDownloadContext(r.Context(), viewer, s.cfg.SessionAbsoluteTTL)
 	defer cancel()
+	release, ok := s.viewerRelays.acquire(viewer.ID, viewer.Username, cancel)
+	if !ok {
+		writeError(w, 429, "dvr_busy", "Too many recording streams")
+		return
+	}
+	defer release()
 	if r.PathValue("resource") == "stream" {
 		var generation uint64
 		ctx, generation = s.playbacks.start(ctx, viewer, s.cfg.SessionAbsoluteTTL)
@@ -387,12 +393,6 @@ func (s *Server) serveDVRFile(w http.ResponseWriter, r *http.Request, api dispat
 		}
 		begun = true
 	}
-	release, ok := s.downloads.acquire(viewer.ID, cancel)
-	if !ok {
-		writeError(w, 429, "dvr_busy", "Too many recording streams")
-		return
-	}
-	defer release()
 	// Register before the final session check so logout always cancels the relay.
 	current, alive := s.sessions.Get(viewer.ID)
 	if !alive || current.DVRKey != viewer.DVRKey {
