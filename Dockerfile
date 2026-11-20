@@ -11,7 +11,7 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS server-builder
+FROM golang:1.27.4-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS server-builder
 RUN apk add --no-cache ca-certificates
 RUN mkdir -p /out/share-root/watch-now && chown 65532:65532 /out/share-root/watch-now && chmod 0700 /out/share-root/watch-now
 WORKDIR /src
